@@ -1,0 +1,14 @@
+{
+  "name": "Seguimiento Deporte",
+  "short_name": "Deporte",
+  "description": "Registro de entrenamientos de natación, carrera, gym, ciclismo y más.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

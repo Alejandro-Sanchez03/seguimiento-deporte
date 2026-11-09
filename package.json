@@ -1,0 +1,11 @@
+{
+  "name": "seguimiento-deporte",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "App web (PWA) para registrar entrenamientos de natación, carrera, gym, ciclismo y más.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.js"
+  }
+}
