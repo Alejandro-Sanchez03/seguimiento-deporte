@@ -1,51 +1,29 @@
-# Seguimiento Deporte
+# Cuaderno de Triatlón
 
-App web (PWA) para registrar y seguir tus entrenamientos de **natación, carrera, gym, ciclismo** y cualquier otro deporte.
+App web para registrar entrenamientos de **natación, carrera, ciclismo y fuerza**, planificar la semana y ver cada día "Hoy te toca". Pensada para el móvil.
 
-## Funcionalidades
+## Dos formas de usarla
 
-- **Registro de entrenamientos** con fecha, duración, distancia, esfuerzo percibido (RPE) y notas.
-- **Métricas por deporte**:
-  - Carrera → ritmo en min/km
-  - Natación → distancia en metros y ritmo en min/100 m
-  - Ciclismo → velocidad media en km/h
-  - Gym → ejercicios con series, repeticiones y peso, y volumen total (kg)
-- **Resumen**: sesiones y tiempo de la semana, racha de días, gráfico de las últimas 8 semanas por deporte y totales del mes.
-- **Historial** agrupado por meses, filtrable por deporte, con mejores marcas.
-- **Copias de seguridad**: exportar/importar JSON y exportar CSV.
-- **Funciona sin conexión** e instalable en el móvil ("Añadir a pantalla de inicio").
+| | GitHub Pages (`index.html`) | Artefacto en Claude |
+|---|---|---|
+| Enlace | `https://alejandro-sanchez03.github.io/seguimiento-deporte/` | El enlace de claude.ai |
+| Datos | En el móvil (no se borran al cerrar; exporta copias) | En tu cuenta de Claude, en todos tus dispositivos |
+| Sin conexión | Sí | No |
+| Icono propio en la pantalla de inicio | Sí | No |
+| Leer foto del reloj con IA | No | Sí |
 
-Los datos se guardan en el propio dispositivo (`localStorage`); no hay servidor ni cuentas.
+Las dos son la misma app. El código fuente está en `artefacto/entreno.html`; `index.html` se genera a partir de él.
 
-## Uso en local
+## Activar GitHub Pages
 
-No necesita compilación ni dependencias:
+1. En GitHub: **Settings → Pages**.
+2. En *Build and deployment* elige **Deploy from a branch**, la rama con la app (`main` cuando se fusione) y la carpeta **/ (root)**.
+3. Espera un par de minutos y abre el enlace en el móvil.
+4. iPhone (Safari): compartir → **Añadir a pantalla de inicio**. Android (Chrome): menú ⋮ → **Instalar app** / **Añadir a pantalla de inicio**.
 
-```bash
-npm start          # o: python3 -m http.server 8080
-```
-
-Abre <http://localhost:8080>.
-
-## Tests
+## Desarrollo
 
 ```bash
-npm test
-```
-
-## Publicarla (para usarla desde el móvil)
-
-Al ser estática, puedes activar **GitHub Pages** (Settings → Pages → rama `main`, carpeta `/`) y abrir la URL desde el móvil para instalarla.
-
-## Estructura
-
-```
-index.html            Estructura y navegación
-css/styles.css        Estilos (modo claro/oscuro, adaptado a móvil)
-js/app.js             Vistas: resumen, historial, formulario y ajustes
-js/sports.js          Definición de deportes (añade aquí nuevos deportes)
-js/stats.js           Cálculos: ritmos, totales, semanas, rachas
-js/storage.js         Guardado local y copias de seguridad
-sw.js                 Service worker (modo sin conexión)
-tests/                Tests de los cálculos
+node scripts/build.mjs        # regenera index.html desde artefacto/entreno.html
+python3 -m http.server 8080   # probar en http://localhost:8080
 ```

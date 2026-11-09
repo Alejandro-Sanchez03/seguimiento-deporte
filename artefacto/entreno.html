@@ -396,9 +396,12 @@ let db = null;
 let loadNote = '';
 let sampler = null, imgLimits = null;
 const LS_KEY = 'cuaderno-tri:v1';
+// Fuera de Claude (p. ej. GitHub Pages) la app funciona sola, con los datos en el dispositivo.
+const STANDALONE = !window.claude?.use;
 
 function useLocal() {
   store = 'local';
+  try { navigator.storage?.persist?.(); } catch { /* opcional */ }
   try {
     const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
     for (const c of COLLS) data[c] = new Map((raw[c] || []).map((o) => [o.id, o]));
@@ -555,7 +558,7 @@ function render(fromData = false) {
   if (fromData && route === 'registrar' && $('#session-form')) { refreshDatalist(); return; }
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
-  const banner = store === 'local'
+  const banner = store === 'local' && !STANDALONE
     ? '<p class="banner">Modo local: los datos se guardan solo en este navegador. Abre la app en Claude para guardarlos en tu cuenta.</p>'
     : loadNote ? `<div class="note warn">${esc(loadNote)}</div>` : '';
   const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, historial: viewHistory, datos: viewData };
@@ -1349,7 +1352,7 @@ function viewData(app, banner) {
   app.innerHTML = `${banner}<h1>Tus datos</h1>
     <div class="note ${store === 'cloud' ? 'okay' : 'warn'}">${store === 'cloud'
       ? 'Se guardan en tu cuenta de Claude, ligados a esta app. No se pierden al cerrarla y los ves desde cualquier dispositivo con tu cuenta.'
-      : store === 'local' ? 'Ahora mismo se guardan solo en este navegador. Abre la app desde Claude para guardarlos en tu cuenta.' : 'Cargando…'}</div>
+      : store === 'local' ? (STANDALONE ? 'Se guardan en este dispositivo y no se pierden al cerrar la app. Si borras los datos del navegador o cambias de móvil, se pierden: exporta una copia de vez en cuando.' : 'Ahora mismo se guardan solo en este navegador. Abre la app desde Claude para guardarlos en tu cuenta.') : 'Cargando…'}</div>
     <div class="stats3">
       <div class="stat"><b>${nS}</b><span>sesiones</span></div>
       <div class="stat"><b>${nP}</b><span>en el plan</span></div>
