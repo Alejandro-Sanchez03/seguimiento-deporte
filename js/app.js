@@ -452,7 +452,9 @@ function viewToday(app, banner) {
       <div><div class="date">${esc(longDate(t))}</div><h1>Hoy te toca</h1></div>
       <button class="daychip" data-st="${st}" data-daytoggle="${t}">${st === 'work' ? 'Trabajo' : st === 'off' ? 'Libro' : 'Marcar día'}</button>
     </div>
-    ${cards}${emptyCard}${extraList}
+    ${cards}${emptyCard}
+    ${backupNote()}
+    ${extraList}
     ${tomorrow.length ? `<section><div class="eyebrow">Mañana</div><div class="list">${tomorrow.map(planRow).join('')}</div></section>` : ''}
     ${raceCountdown()}
     ${shoeWarnings()}
@@ -466,7 +468,6 @@ function viewToday(app, banner) {
       </div>
       <div class="note ${goal.cls}">${esc(goal.txt)}</div>
     </section>
-    ${backupNote()}
     ${homeStats(t)}
     ${recent.length ? `<section><div class="sec-head"><h2>Últimas sesiones</h2><a class="muted" href="#progreso" data-prog="all">Todas</a></div><div class="list">${recent.map(sessionRow).join('')}</div></section>` : ''}`;
 
@@ -491,6 +492,7 @@ function bindCommon(root) {
   root.querySelectorAll('[data-sheet]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); planSheet(b.dataset.sheet); }));
   root.querySelectorAll('[data-today]').forEach((b) => (b.onclick = () => movePlan(b.dataset.today, today())));
   root.querySelectorAll('[data-daytoggle]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggleDay(b.dataset.daytoggle); }));
+  root.querySelectorAll('[data-backup]').forEach((b) => (b.onclick = () => exportFile('json')));
   root.querySelectorAll('[data-new]').forEach((b) => (b.onclick = () => { draft = newDraft({}); }));
   root.querySelectorAll('[data-prog]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); progSport = b.dataset.prog; progPeriod = 'week'; progOffset = 0; histLimit = 20; go('progreso'); }));
 }
@@ -1652,11 +1654,17 @@ function daysSince(isoStr) {
   if (!isoStr) return null;
   return Math.floor((fromISO(today()) - fromISO(isoStr.slice(0, 10))) / 86400000);
 }
-function backupNote() {
-  const n = data.sessions.size;
+const BACKUP_EVERY_DAYS = 7; // en iPhone, Safari puede borrar los datos de una web; mejor copias frecuentes
+const hasAnyData = () => data.sessions.size + data.plan.size + data.races.size + data.shoes.size > 0;
+function backupDue() {
   const ds = daysSince(settings.lastExport);
-  if (n < 5 || (ds != null && ds < 30)) return '';
-  return `<div class="note warn">${ds == null ? 'Aún no has hecho ninguna copia de seguridad.' : `Tu última copia de seguridad es de hace ${ds} días.`} Tus datos solo están en este móvil. <a href="#ajustes">Hacer copia</a></div>`;
+  return hasAnyData() && (ds == null || ds >= BACKUP_EVERY_DAYS);
+}
+function backupNote() {
+  if (!backupDue()) return '';
+  const ds = daysSince(settings.lastExport);
+  return `<div class="note warn backup-note"><span>${ds == null ? 'Aún no has hecho ninguna copia de seguridad.' : `Tu última copia de seguridad es de hace ${ds} días.`} Tus datos solo están en este móvil y Safari puede borrarlos.</span>
+    <button type="button" class="btn small" data-backup>Exportar ahora</button></div>`;
 }
 
 function viewSettings(app, banner) {
@@ -1685,7 +1693,7 @@ function viewSettings(app, banner) {
       <div class="seg goal">${[3, 4, 5, 6, 7].map((n) => `<button type="button" data-goal="${n}" aria-pressed="${settings.goalDays === n}">${n}</button>`).join('')}</div>
     </section>
     <section class="dz"><h2>Copia de seguridad</h2>
-      <div class="note ${ds != null && ds < 30 ? 'okay' : 'warn'}">Tus datos se guardan solo en este dispositivo. ${ds == null ? 'Aún no has hecho ninguna copia.' : ds === 0 ? 'Última copia: hoy.' : `Última copia: hace ${ds} día${ds === 1 ? '' : 's'}.`} Si borras los datos del navegador o cambias de móvil, solo recuperarás lo que tengas en una copia.</div>
+      <div class="note ${backupDue() ? 'warn' : 'okay'}">Tus datos se guardan solo en este dispositivo. ${ds == null ? 'Aún no has hecho ninguna copia.' : ds === 0 ? 'Última copia: hoy.' : `Última copia: hace ${ds} día${ds === 1 ? '' : 's'}.`} Si borras los datos del navegador, Safari los elimina o cambias de móvil, solo recuperarás lo que tengas en una copia. La app te lo recuerda cada ${BACKUP_EVERY_DAYS} días.</div>
       <div class="stats3">
         <div class="stat"><b>${data.sessions.size}</b><span>sesiones</span></div>
         <div class="stat"><b>${data.plan.size}</b><span>en el plan</span></div>
@@ -1793,11 +1801,16 @@ function exportFile(kind) {
   const file = typeof File === 'function' ? new File([blob], f.name, { type: f.type }) : null;
   // En el móvil, el menú Compartir permite guardar en Archivos, Drive o enviarlo.
   if (file && navigator.canShare?.({ files: [file] })) {
-    navigator.share({ files: [file], title: f.name }).then(markExported).catch(() => {});
+    navigator.share({ files: [file], title: f.name }).then(() => markExported(kind)).catch((e) => {
+      if (e?.name !== 'AbortError') downloadBlob(blob, f.name, kind); // si no se puede compartir, se descarga
+    });
     return;
   }
+  downloadBlob(blob, f.name, kind);
+}
+function downloadBlob(blob, name, kind) {
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'), { href: url, download: f.name });
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
   markExported(kind);

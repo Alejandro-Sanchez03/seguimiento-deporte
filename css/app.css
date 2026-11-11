@@ -331,3 +331,6 @@ a.item { text-decoration: none; color: inherit; }
 .shoe-km.near { color: var(--warn); } .shoe-km.over { color: var(--bad); }
 .shoe-bar.near i { background: var(--warn); } .shoe-bar.over i { background: var(--bad); }
 a.note { display: block; text-decoration: none; color: var(--fg); }
+
+.backup-note { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.backup-note span { flex: 1 1 200px; }

@@ -10,7 +10,9 @@ App web para registrar y planificar entrenamientos de **cualquier deporte**: car
 - **Registrar:** formulario que se adapta a cómo se mide cada deporte (ritmo /km, ritmo /100 m, ritmo /500 m, velocidad, solo tiempo o ejercicios con series y kg).
 - **Semana:** plan por días, mover e intercambiar sesiones, días de trabajo y libres, copiar el plan a varias semanas.
 - **Progreso:** volumen, gráficas de evolución y récords, para todos los deportes o uno solo.
-- **Ajustes:** tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal y copias de seguridad.
+- **Carreras:** próximas carreras con fecha, distancia, marca objetivo y ritmo necesario; cuenta atrás en Hoy.
+- **Zapatillas:** kilómetros de cada par, elegidas al registrar; aviso a partir de 600 km y al llegar a 700 (límite configurable).
+- **Ajustes:** tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal, carreras, zapatillas y copias de seguridad.
 
 ## Instalar en el móvil
 
@@ -21,7 +23,9 @@ Funciona sin conexión una vez abierta.
 
 ## Tus datos
 
-Se guardan en el propio dispositivo (`localStorage`). No hay servidor ni cuentas. Haz una copia desde **Ajustes → Exportar todo (JSON)** de vez en cuando; la app te avisa si pasan más de 30 días.
+Se guardan en el propio dispositivo (`localStorage`, clave `cuaderno-tri:v1`; ajustes en `cuaderno-tri:ajustes`). No hay servidor ni cuentas. En iPhone, Safari puede borrar los datos de una web, así que la app te pide exportar una copia (**Exportar ahora** en Hoy, o **Ajustes → Exportar todo**) cada 7 días.
+
+El objeto guardado lleva un número de versión (`schema`). Cuando cambia la estructura, la app migra sola al abrirse, sin borrar nada, y antes guarda una copia del estado anterior en `cuaderno-tri:v1:copia-antes-de-vN`. Si alguna vez lo guardado no se puede leer, se aparta en `cuaderno-tri:v1:ilegible-…` en lugar de sobrescribirlo.
 
 ## Estructura
 
