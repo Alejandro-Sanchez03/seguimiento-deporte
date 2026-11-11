@@ -190,12 +190,12 @@ const sessionTitle = (s) => s.title || [sp(s.sport).label, s.type].filter(Boolea
 
 // ===================== Datos (en el dispositivo) =====================
 // Todo se guarda en localStorage con la clave LS_KEY, en un único objeto:
-//   { schema, sessions: [...], plan: [...], days: [...], races: [...] }
+//   { schema, sessions: [...], plan: [...], days: [...], races: [...], shoes: [...] }
 // Las colecciones nuevas se añaden sin tocar las existentes. Cada cambio de estructura sube
 // SCHEMA y tiene su paso en migrate(); antes de migrar se guarda una copia del estado anterior.
-const COLLS = ['sessions', 'plan', 'days', 'races'];
+const COLLS = ['sessions', 'plan', 'days', 'races', 'shoes'];
 const data = Object.fromEntries(COLLS.map((c) => [c, new Map()]));
-const SCHEMA = 2;
+const SCHEMA = 3;
 let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
@@ -212,6 +212,8 @@ function migrate(raw) {
   }
   // v1 → v2: se añade la lista de carreras. Sesiones, plan y días no cambian.
   if (from < 2) raw.races = Array.isArray(raw.races) ? raw.races : [];
+  // v2 → v3: se añade la lista de zapatillas. Las sesiones pueden llevar shoeId (opcional).
+  if (from < 3) raw.shoes = Array.isArray(raw.shoes) ? raw.shoes : [];
   raw.schema = SCHEMA;
   return { raw, changed: true };
 }
@@ -349,7 +351,7 @@ function routeFromHash() {
   const r = location.hash.slice(1) || 'hoy';
   if (r === 'historial') return 'progreso';
   if (r === 'datos') return 'ajustes';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras'].includes(r) ? r : 'hoy';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'zapatillas'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -382,7 +384,7 @@ function render(fromData = false) {
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
   const banner = unreadableNote ? '<div class="note bad">Había datos guardados que no se pudieron leer. Se han apartado sin borrarlos. Si echas algo en falta, importa tu última copia de seguridad.</div>' : '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces };
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, zapatillas: viewShoes };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -453,6 +455,7 @@ function viewToday(app, banner) {
     ${cards}${emptyCard}${extraList}
     ${tomorrow.length ? `<section><div class="eyebrow">Mañana</div><div class="list">${tomorrow.map(planRow).join('')}</div></section>` : ''}
     ${raceCountdown()}
+    ${shoeWarnings()}
     ${missedSec}
     <section>
       <div class="sec-head"><h2>Esta semana</h2><a class="muted" href="#semana">Ver semana</a></div>
@@ -730,7 +733,7 @@ function newDraft(o) {
     id: null, sport: o.sport || lastSport() || firstSport(), date: o.date || today(), title: o.title || '', type: o.type || '',
     durationSec: null, distanceM: null, elevationM: null, rpe: null, feel: null, notes: '',
     gear: [], reps: { count: null, distM: null, paces: [] },
-    exercises: [], planId: o.planId || null,
+    exercises: [], planId: o.planId || null, shoeId: undefined,
   };
 }
 // El deporte de la última sesión registrada, para ahorrar un toque.
@@ -755,6 +758,7 @@ function editSession(id) {
   draft.gear = gearOf(s);
   draft.reps = draft.reps || { count: null, distM: null, paces: [] };
   draft.exercises = draft.exercises || [];
+  draft.shoeId = s.shoeId || null;
   closeSheet();
   go('registrar');
 }
@@ -795,6 +799,13 @@ function viewForm(app, banner) {
   }
   if (S.elev) {
     specific += `<div class="field"><label for="f-elev">Desnivel positivo (m)</label><input id="f-elev" inputmode="numeric" value="${esc(d.elevationM ?? '')}" placeholder="0" autocomplete="off"></div>`;
+  }
+  const shoeOpts = shoesFor(d.sport);
+  if (d.shoeId === undefined) d.shoeId = defaultShoe(d.sport);
+  const curShoe = d.shoeId ? data.shoes.get(d.shoeId) : null;
+  if (curShoe && !shoeOpts.includes(curShoe)) shoeOpts.push(curShoe); // al editar una sesión con zapatillas ya retiradas
+  if (shoeOpts.length) {
+    specific += `<div class="field"><span class="lbl">Zapatillas</span><div class="chips">${shoeOpts.map((sh) => `<button type="button" data-shoepick="${esc(sh.id)}" aria-pressed="${d.shoeId === sh.id}">${esc(sh.name)} · ${nf(shoeKm(sh), 0)} km</button>`).join('')}<button type="button" data-shoepick="" aria-pressed="${!d.shoeId}">Ninguna</button></div></div>`;
   }
   if (S.gear?.length) {
     specific += `<div class="field"><span class="lbl">Material</span><div class="row">${S.gear.map((g) => {
@@ -894,6 +905,7 @@ function bindForm(app) {
     if (d.sport === b.dataset.sport) return;
     const prevUnit = distUnit(d.sport), prevMetric = metricOf(d.sport);
     d.sport = b.dataset.sport;
+    d.shoeId = undefined;
     d.type = (sp(d.sport).types || []).includes(d.type) ? d.type : '';
     d.gear = d.gear.filter((g) => (sp(d.sport).gear || []).includes(g));
     if (!isDistMetric(metricOf(d.sport))) d.distanceM = null;
@@ -916,6 +928,7 @@ function bindForm(app) {
     d.gear = d.gear.includes(g) ? d.gear.filter((x) => x !== g) : [...d.gear, g];
     rerender();
   }));
+  $$('[data-shoepick]', form).forEach((b) => (b.onclick = () => { d.shoeId = b.dataset.shoepick || null; rerender(); }));
   $$('[data-dist]', form).forEach((b) => (b.onclick = () => {
     const v = Number(b.dataset.dist); d.distanceM = unitM() ? v : Math.round(v * 1000);
     $('#f-dist').value = v; updateCalc();
@@ -987,6 +1000,7 @@ function bindForm(app) {
     };
     if (S.gear?.length) s.gear = d.gear.filter((g) => S.gear.includes(g));
     if (S.elev) s.elevationM = d.elevationM || null;
+    if (isDistMetric(metric) && d.shoeId && data.shoes.has(d.shoeId)) s.shoeId = d.shoeId;
     if (S.intervals && isPaceMetric(metric) && d.type === 'Series') {
       const count = Number(d.reps.count) || 0;
       s.reps = { count, distM: d.reps.distM || null, paces: (d.reps.paces || []).slice(0, count).map((x) => x || null) };
@@ -1002,7 +1016,9 @@ function bindForm(app) {
     await put('sessions', s);
     if (plan && plan.sessionId !== s.id) await put('plan', { ...plan, sessionId: s.id });
     draft = null;
-    toast(d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada');
+    const shoe = s.shoeId ? data.shoes.get(s.shoeId) : null;
+    const shoeMsg = shoe && shoeState(shoe) !== 'ok' ? ` · «${shoe.name}» llevan ${nf(shoeKm(shoe), 0)} km` : '';
+    toast((d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada') + shoeMsg);
     go('hoy');
   };
 }
@@ -1361,7 +1377,7 @@ function planCSV() {
 }
 function fullJSON() {
   return JSON.stringify({ app: 'cuaderno-deporte', version: 2, exportedAt: new Date().toISOString(), settings,
-    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()], races: [...data.races.values()] }, null, 2);
+    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()], races: [...data.races.values()], shoes: [...data.shoes.values()] }, null, 2);
 }
 const validKey = (k) => typeof k === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(k);
 function cleanSession(s) {
@@ -1373,12 +1389,13 @@ function cleanPlan(p) {
   return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
 }
 async function importText(name, text) {
-  let sessions = [], plan = [], days = [], races = [];
+  let sessions = [], plan = [], days = [], races = [], shoes = [];
   if (/\.json$/i.test(name) || /^\s*[{[]/.test(text)) {
     const j = JSON.parse(text);
     sessions = (j.sessions || []).map(cleanSession).filter(Boolean);
     plan = (j.plan || []).map(cleanPlan).filter(Boolean);
     races = (Array.isArray(j.races) ? j.races : []).map(cleanRace).filter(Boolean);
+    shoes = (Array.isArray(j.shoes) ? j.shoes : []).map(cleanShoe).filter(Boolean);
     days = (j.days || []).filter((x) => isISO(x?.id) && ['work', 'off'].includes(x.status)).map((x) => ({ id: x.id, status: x.status }));
     for (const def of j.settings?.sports || []) if (validKey(def?.key) && !settings.sports.some((x) => x.key === def.key)) settings.sports.push(cleanSportDef(def));
     if (j.settings?.goalDays) settings.goalDays = Math.min(7, Math.max(1, Number(j.settings.goalDays) || 6));
@@ -1398,13 +1415,13 @@ async function importText(name, text) {
       plan = rows.map((r) => cleanPlan({ id: r[ix('id')], date: r[ix('fecha')], sport: r[ix('deporte')], type: r[ix('tipo')], desc: r[ix('descripcion')], sessionId: r[ix('sesion_id')] || null })).filter(Boolean);
     } else throw new Error('formato');
   }
-  const total = sessions.length + plan.length + days.length + races.length;
+  const total = sessions.length + plan.length + days.length + races.length + shoes.length;
   if (!total) throw new Error('vacío');
   for (const x of [...sessions, ...plan]) ensureSport(x.sport);
   saveSettings();
   toast(`Importando ${total} registros…`);
-  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x)), ...races.map((r) => () => put('races', r))]);
-  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones, ${plan.length} del plan y ${races.length} carreras`);
+  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x)), ...races.map((r) => () => put('races', r)), ...shoes.map((x) => () => put('shoes', x))]);
+  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones, ${plan.length} del plan, ${races.length} carreras y ${shoes.length} zapatillas`);
   render();
 }
 
@@ -1527,6 +1544,97 @@ function cleanRace(r) {
     sport: validKey(r.sport) ? r.sport : '', distanceM: n(r.distanceM), targetSec: n(r.targetSec), resultSec: n(r.resultSec), notes: String(r.notes || '').slice(0, 1000) };
 }
 
+// ===================== ZAPATILLAS =====================
+const ICO_SHOE = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16v-5l4-1 3 3h3l7 2a2 2 0 011 2v1H3z"/><path d="M3 19h18M8 13l1-2M11 13l1-2"/></svg>';
+const SHOE_WARN_BEFORE = 100; // aviso a falta de 100 km del límite (600 de 700)
+const shoeSessions = (id) => [...data.sessions.values()].filter((s) => s.shoeId === id);
+const shoeKm = (sh) => (Number(sh.startKm) || 0) + shoeSessions(sh.id).reduce((a, s) => a + (s.distanceM || 0), 0) / 1000;
+const shoeLimit = (sh) => Number(sh.limitKm) || 700;
+function shoeState(sh) {
+  const km = shoeKm(sh), lim = shoeLimit(sh);
+  return km >= lim ? 'over' : km >= lim - SHOE_WARN_BEFORE ? 'near' : 'ok';
+}
+const shoesFor = (sport) => [...data.shoes.values()].filter((sh) => !sh.retired && (sh.sports || ['run']).includes(sport)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+// Zapatilla por defecto: la última usada en ese deporte (si sigue activa) o la única que haya.
+function defaultShoe(sport) {
+  const opts = shoesFor(sport);
+  if (!opts.length) return null;
+  const last = sessionsDesc().find((s) => s.sport === sport && s.shoeId && opts.some((o) => o.id === s.shoeId));
+  if (last) return last.shoeId;
+  return opts.length === 1 ? opts[0].id : null;
+}
+function shoeWarnings() {
+  return [...data.shoes.values()].filter((sh) => !sh.retired && shoeState(sh) !== 'ok').map((sh) => {
+    const km = Math.round(shoeKm(sh)), lim = shoeLimit(sh);
+    return shoeState(sh) === 'over'
+      ? `<a class="note bad" href="#zapatillas">Tus zapatillas «${esc(sh.name)}» llevan ${nf(km)} km y ya han pasado los ${nf(lim)}. Es buen momento para cambiarlas.</a>`
+      : `<a class="note warn" href="#zapatillas">Tus zapatillas «${esc(sh.name)}» llevan ${nf(km)} km de ${nf(lim)}. Ve pensando en cambiarlas.</a>`;
+  }).join('');
+}
+function shoeCard(sh) {
+  const km = shoeKm(sh), lim = shoeLimit(sh), st = shoeState(sh);
+  const n = shoeSessions(sh.id).length;
+  const last = sessionsDesc().find((s) => s.shoeId === sh.id);
+  return `<button type="button" class="shoe ${sh.retired ? 'is-retired' : ''}" data-shoe="${esc(sh.id)}">
+    <span class="shoe-head"><span class="item-title">${esc(sh.name)}</span><span class="num shoe-km ${st}">${nf(km, 0)} / ${nf(lim)} km</span></span>
+    <span class="meter-bar shoe-bar ${st}"><i style="width:${Math.min(100, Math.round((km / lim) * 100))}%"></i></span>
+    <span class="item-sub">${esc((sh.sports || ['run']).map((k) => sp(k).label).join(', '))} · ${n} sesi${n === 1 ? 'ón' : 'ones'}${last ? ` · última: ${esc(shortDate(last.date))}` : ''}${sh.retired ? ' · retiradas' : st === 'over' ? ' · toca cambiarlas' : st === 'near' ? ` · quedan ${nf(Math.max(0, lim - km))} km` : ''}</span>
+  </button>`;
+}
+function viewShoes(app, banner) {
+  const all = [...data.shoes.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const active = all.filter((sh) => !sh.retired), retired = all.filter((sh) => sh.retired);
+  app.innerHTML = `${banner}
+    <div class="top"><div><div class="eyebrow">Material</div><h1>Zapatillas</h1></div></div>
+    <p class="hint" style="margin:0">Elige las zapatillas al registrar una carrera y la app suma sus kilómetros. Te avisa a partir de ${nf(700 - SHOE_WARN_BEFORE)} km y al llegar a 700 (o al límite que pongas).</p>
+    <button class="btn primary block" id="add-shoe">+ Añadir zapatillas</button>
+    <section><h2>En uso</h2>${active.length ? `<div class="shoes">${active.map(shoeCard).join('')}</div>` : '<div class="empty"><p class="muted" style="margin:0">No tienes zapatillas dadas de alta.</p></div>'}</section>
+    ${retired.length ? `<section><h2>Retiradas</h2><div class="shoes">${retired.map(shoeCard).join('')}</div></section>` : ''}`;
+  $('#add-shoe', app).onclick = () => shoeEditor(null);
+  $$('[data-shoe]', app).forEach((b) => (b.onclick = () => shoeEditor(data.shoes.get(b.dataset.shoe))));
+}
+function shoeEditor(sh) {
+  const isNew = !sh;
+  const f = sh ? clone(sh) : { id: uid(), name: '', sports: [SPORT_KEYS.includes('run') ? 'run' : SPORT_KEYS.find((k) => isDistMetric(metricOf(k))) || 'run'], startKm: 0, limitKm: 700, retired: false, createdAt: Date.now() };
+  const used = isNew ? 0 : shoeSessions(f.id).length;
+  const distSports = [...new Set([...SPORT_KEYS.filter((k) => isDistMetric(metricOf(k))), ...(f.sports || [])])];
+  const draw = (el) => {
+    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nuevas zapatillas' : 'Editar zapatillas'}</h2>
+      <div class="field"><label for="sh-name">Nombre</label><input id="sh-name" type="text" maxlength="60" value="${esc(f.name)}" placeholder="p. ej. Pegasus 41 rojas" autocomplete="off"></div>
+      <div class="field"><span class="lbl">Para qué deportes</span><div class="chips">${distSports.map((k) => `<button type="button" data-shs="${esc(k)}" aria-pressed="${(f.sports || []).includes(k)}">${esc(sp(k).label)}</button>`).join('')}</div></div>
+      <div class="grid2">
+        <div class="field"><label for="sh-start">Km que ya tenían</label><input id="sh-start" inputmode="decimal" value="${esc(f.startKm || '')}" placeholder="0" autocomplete="off"></div>
+        <div class="field"><label for="sh-limit">Avisar al llegar a (km)</label><input id="sh-limit" inputmode="numeric" value="${esc(f.limitKm || 700)}" autocomplete="off"></div>
+      </div>
+      ${isNew ? '' : `<p class="hint" style="margin:0">Llevan ${nf(shoeKm(f), 0)} km en ${used} sesi${used === 1 ? 'ón' : 'ones'} registradas con ellas.</p>
+        <button type="button" class="toggle" id="sh-ret" aria-pressed="${!!f.retired}">${f.retired ? ICO_CHECK : ''}Retiradas (ya no las uso)</button>`}
+      <button class="btn primary block" id="sh-save">${isNew ? 'Añadir zapatillas' : 'Guardar'}</button>
+      ${!isNew && !used ? '<button class="btn danger block" id="sh-del">Eliminar</button>' : ''}`;
+    const keep = () => { f.name = $('#sh-name', el).value; f.startKm = num($('#sh-start', el).value) || 0; f.limitKm = num($('#sh-limit', el).value) || 700; };
+    $$('[data-shs]', el).forEach((b) => (b.onclick = () => { keep(); const k = b.dataset.shs; f.sports = (f.sports || []).includes(k) ? f.sports.filter((x) => x !== k) : [...(f.sports || []), k]; draw(el); }));
+    $('#sh-ret', el)?.addEventListener('click', () => { keep(); f.retired = !f.retired; draw(el); });
+    $('#sh-save', el).onclick = async () => {
+      keep();
+      if (!f.name.trim()) { toast('Ponles un nombre'); return; }
+      if (!f.sports?.length) { toast('Elige al menos un deporte'); return; }
+      await put('shoes', cleanShoe(f));
+      closeSheet(); toast(isNew ? 'Zapatillas añadidas' : 'Zapatillas guardadas'); render();
+    };
+    const delBtn = $('#sh-del', el);
+    if (delBtn) delBtn.onclick = async () => {
+      if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para eliminar'; return; }
+      await del('shoes', f.id); closeSheet(); toast('Zapatillas eliminadas'); render();
+    };
+  };
+  openSheet('', draw);
+}
+function cleanShoe(sh) {
+  if (!sh || !String(sh.name || '').trim()) return null;
+  return { id: typeof sh.id === 'string' && /^[\w.~:@+-]+$/.test(sh.id) ? sh.id : uid(), name: String(sh.name).trim().slice(0, 60),
+    sports: (Array.isArray(sh.sports) ? sh.sports : ['run']).filter(validKey).slice(0, 10), startKm: Math.max(0, Number(sh.startKm) || 0),
+    limitKm: Math.max(1, Number(sh.limitKm) || 700), retired: !!sh.retired, createdAt: Number(sh.createdAt) || Date.now() };
+}
+
 // ===================== AJUSTES =====================
 function cleanSportDef(d) {
   const metric = METRICS[d.metric] ? d.metric : 'time';
@@ -1569,6 +1677,7 @@ function viewSettings(app, banner) {
     <section><h2>Carreras y material</h2>
       <div class="list">
         <a class="item" href="#carreras"><span class="tile c-ink">${ICO_FLAG}</span><span class="item-main"><span class="item-title">Carreras</span><span class="item-sub">${upcomingRaces().length ? `${upcomingRaces().length} próxima${upcomingRaces().length === 1 ? '' : 's'} · ${esc(countdownTxt(daysUntil(upcomingRaces()[0].date)).toLowerCase())}` : 'Apunta tus próximas carreras y marcas objetivo'}</span></span>${ICO_R}</a>
+        <a class="item" href="#zapatillas"><span class="tile c-ink">${ICO_SHOE}</span><span class="item-main"><span class="item-title">Zapatillas</span><span class="item-sub">${(() => { const act = [...data.shoes.values()].filter((x) => !x.retired); const warn = act.filter((x) => shoeState(x) !== 'ok').length; return act.length ? `${act.length} en uso${warn ? ` · ${warn} cerca del límite` : ''}` : 'Cuenta los km de cada par y avisa a los 700'; })()}</span></span>${ICO_R}</a>
       </div>
     </section>
     <section><h2>Objetivo semanal</h2>

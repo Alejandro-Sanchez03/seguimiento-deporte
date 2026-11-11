@@ -320,3 +320,14 @@ textarea.dump { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; m
 .pill.race .ico { color: var(--fg); }
 .c-ink { background: var(--ink); color: var(--on-ink); }
 a.item { text-decoration: none; color: inherit; }
+
+/* Zapatillas */
+.shoes { display: flex; flex-direction: column; gap: 8px; }
+.shoe { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.shoe.is-retired { opacity: .65; }
+.shoe-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.shoe-head .item-title { min-width: 0; overflow-wrap: anywhere; }
+.shoe-km { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; white-space: nowrap; }
+.shoe-km.near { color: var(--warn); } .shoe-km.over { color: var(--bad); }
+.shoe-bar.near i { background: var(--warn); } .shoe-bar.over i { background: var(--bad); }
+a.note { display: block; text-decoration: none; color: var(--fg); }
