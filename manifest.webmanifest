@@ -1,7 +1,7 @@
 {
-  "name": "Cuaderno de Triatlón",
+  "name": "Cuaderno de Entreno",
   "short_name": "Entreno",
-  "description": "Registro de entrenamientos de triatlón y fuerza, con plan semanal.",
+  "description": "Registro y plan de entrenamientos para cualquier deporte.",
   "lang": "es",
   "start_url": "./#hoy",
   "scope": "./",

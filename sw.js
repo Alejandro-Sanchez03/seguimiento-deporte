@@ -1,6 +1,6 @@
 // Permite abrir la app sin conexión. Red primero para recibir siempre la última versión.
-const CACHE = 'entreno-v1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'entreno-v2';
+const ASSETS = ['./', './index.html', './css/app.css', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));

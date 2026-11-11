@@ -1,29 +1,37 @@
-# Cuaderno de Triatlón
+# Cuaderno de Entreno
 
-App web para registrar entrenamientos de **natación, carrera, ciclismo y fuerza**, planificar la semana y ver cada día "Hoy te toca". Pensada para el móvil.
+App web para registrar y planificar entrenamientos de **cualquier deporte**: carrera, natación, ciclismo, fuerza, pádel, escalada, senderismo, remo… y los que crees tú. Pensada para el móvil y publicada con GitHub Pages.
 
-## Dos formas de usarla
+**Abrir la app:** https://alejandro-sanchez03.github.io/seguimiento-deporte/
 
-| | GitHub Pages (`index.html`) | Artefacto en Claude |
-|---|---|---|
-| Enlace | `https://alejandro-sanchez03.github.io/seguimiento-deporte/` | El enlace de claude.ai |
-| Datos | En el móvil (no se borran al cerrar; exporta copias) | En tu cuenta de Claude, en todos tus dispositivos |
-| Sin conexión | Sí | No |
-| Icono propio en la pantalla de inicio | Sí | No |
-| Leer foto del reloj con IA | No | Sí |
+## Qué hace
 
-Las dos son la misma app. El código fuente está en `artefacto/entreno.html`; `index.html` se genera a partir de él.
+- **Hoy:** la sesión que toca, la semana de un vistazo, el objetivo de días y tus números de la semana.
+- **Registrar:** formulario que se adapta a cómo se mide cada deporte (ritmo /km, ritmo /100 m, ritmo /500 m, velocidad, solo tiempo o ejercicios con series y kg).
+- **Semana:** plan por días, mover e intercambiar sesiones, días de trabajo y libres, copiar el plan a varias semanas.
+- **Progreso:** volumen, gráficas de evolución y récords, para todos los deportes o uno solo.
+- **Ajustes:** tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal y copias de seguridad.
 
-## Activar GitHub Pages
+## Instalar en el móvil
 
-1. En GitHub: **Settings → Pages**.
-2. En *Build and deployment* elige **Deploy from a branch**, la rama con la app (`main` cuando se fusione) y la carpeta **/ (root)**.
-3. Espera un par de minutos y abre el enlace en el móvil.
-4. iPhone (Safari): compartir → **Añadir a pantalla de inicio**. Android (Chrome): menú ⋮ → **Instalar app** / **Añadir a pantalla de inicio**.
+- **iPhone (Safari):** Compartir → «Añadir a pantalla de inicio».
+- **Android (Chrome):** menú ⋮ → «Instalar app».
 
-## Desarrollo
+Funciona sin conexión una vez abierta.
 
-```bash
-node scripts/build.mjs        # regenera index.html desde artefacto/entreno.html
-python3 -m http.server 8080   # probar en http://localhost:8080
+## Tus datos
+
+Se guardan en el propio dispositivo (`localStorage`). No hay servidor ni cuentas. Haz una copia desde **Ajustes → Exportar todo (JSON)** de vez en cuando; la app te avisa si pasan más de 30 días.
+
+## Estructura
+
 ```
+index.html            Estructura y barra de pestañas
+css/app.css           Estilos (modo claro y oscuro)
+js/app.js             Toda la lógica de la app
+sw.js                 Funcionamiento sin conexión
+manifest.webmanifest  Datos para instalarla como app
+icons/                Iconos
+```
+
+Para probarla en local: `python3 -m http.server 8080` y abre http://localhost:8080.

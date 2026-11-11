@@ -1,330 +1,89 @@
-<title>Cuaderno de Triatlón</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
-<style>
-/* Layout: una columna para móvil, barra de pestañas fija abajo, tarjetas solo donde hay acción. */
-:root {
-  --bg: #eef2f5;
-  --surface: #ffffff;
-  --surface-2: #e4eaef;
-  --fg: #0e1a24;
-  --muted: #566775;
-  --line: #d3dce3;
-  --ink: #0e1a24;
-  --on-ink: #ffffff;
-  --swim: #0a74b0;
-  --bike: #0d8a78;
-  --run: #d4531a;
-  --strength: #6a4cc2;
-  --ok: #2c7a35;
-  --bad: #c0362c;
-  --warn: #a76400;
-  --ai: #b06f00;
-  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
-  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --r: 14px;
-  --tab-h: 64px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0b131a; --surface: #131e27; --surface-2: #1b2833; --fg: #e6edf2; --muted: #8fa1af; --line: #26343f;
-    --ink: #e6edf2; --on-ink: #0b131a;
-    --swim: #4cb1e6; --bike: #3cc4ad; --run: #ff7d42; --strength: #a28df2;
-    --ok: #5cc06a; --bad: #ff6b5e; --warn: #f0a540; --ai: #f0b040;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0b131a; --surface: #131e27; --surface-2: #1b2833; --fg: #e6edf2; --muted: #8fa1af; --line: #26343f;
-  --ink: #e6edf2; --on-ink: #0b131a;
-  --swim: #4cb1e6; --bike: #3cc4ad; --run: #ff7d42; --strength: #a28df2;
-  --ok: #5cc06a; --bad: #ff6b5e; --warn: #f0a540; --ai: #f0b040;
-  color-scheme: dark;
-}
-
-* { box-sizing: border-box; }
-body {
-  background: var(--bg); color: var(--fg);
-  font-family: var(--font-body); font-size: 16px; line-height: 1.4;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 24px);
-  -webkit-tap-highlight-color: transparent;
-}
-main { max-width: 560px; margin: 0 auto; padding-block: 16px 8px; display: flex; flex-direction: column; gap: 22px; }
-h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: .01em; }
-h1 { font-size: 2rem; line-height: 1.05; }
-h2 { font-size: 1.35rem; }
-h3 { font-size: 1.1rem; }
-.eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .09em; font-size: .82rem; font-weight: 600; color: var(--muted); }
-.muted { color: var(--muted); }
-.num { font-variant-numeric: tabular-nums; }
-section { display: flex; flex-direction: column; gap: 10px; }
-.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-button { font: inherit; color: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid var(--swim); outline-offset: 2px; }
-a { color: inherit; }
-
-/* Sport colour helper: elements set --c */
-.s-swim { --c: var(--swim); } .s-bike { --c: var(--bike); } .s-run { --c: var(--run); } .s-strength { --c: var(--strength); }
-.ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.tile { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--c); color: #fff; flex: none; }
-.tile .ico { width: 26px; height: 26px; }
-
-/* Buttons */
-.btn { min-height: 52px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
-.btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.btn.sport { background: var(--c); border-color: var(--c); color: #fff; }
-.btn.ghost { background: transparent; }
-.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: transparent; }
-.btn.small { min-height: 40px; padding: 0 12px; font-size: .92rem; }
-.btn.block { width: 100%; }
-.btn:disabled { opacity: .5; cursor: default; }
-.row { display: flex; gap: 10px; flex-wrap: wrap; }
-.row > .btn { flex: 1 1 140px; }
-
-/* Header */
-.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.top .date { font-family: var(--font-display); font-size: 1rem; color: var(--muted); font-weight: 600; letter-spacing: .03em; }
-.daychip { min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 14px; font-size: .9rem; font-weight: 600; white-space: nowrap; }
-.daychip[data-st="work"] { background: var(--surface-2); }
-.daychip[data-st="off"] { border-color: var(--ok); color: var(--ok); }
-
-/* Today card */
-.today { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
-.today-band { background: var(--c); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-.today-band .ico { width: 30px; height: 30px; }
-.today-band .kind { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; font-size: .95rem; }
-.today-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.today-desc { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; line-height: 1.02; overflow-wrap: anywhere; }
-.done-line { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 600; }
-.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; }
-
-/* Lists */
-.list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
-.item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; background: none; border: 0; width: 100%; min-height: 64px; }
-.item + .item { border-top: 1px solid var(--line); }
-.item .tile { width: 38px; height: 38px; border-radius: 10px; }
-.item .tile .ico { width: 22px; height: 22px; }
-.item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.item-title { font-weight: 600; overflow-wrap: anywhere; }
-.item-sub { font-size: .88rem; color: var(--muted); }
-.badge { font-size: .78rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; display: inline-flex; gap: 4px; align-items: center; }
-.badge.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
-.badge.missed { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); }
-.badge.pending { color: var(--muted); background: var(--surface-2); }
-
-/* Week strip */
-.strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.strip a { text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
-.strip a.is-today { border-color: var(--ink); border-width: 2px; }
-.strip .d { font-size: .72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
-.strip .n { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; }
-.dots { display: flex; gap: 3px; min-height: 8px; flex-wrap: wrap; justify-content: center; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-.dot.hollow { background: transparent; box-shadow: inset 0 0 0 2px var(--c); }
-
-.meter { display: flex; flex-direction: column; gap: 6px; }
-.meter-bar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.meter-bar i { display: block; height: 100%; background: var(--ink); border-radius: 999px; }
-.note { padding: 12px 14px; border-radius: 12px; font-size: .95rem; background: var(--surface-2); }
-.note.warn { background: color-mix(in srgb, var(--warn) 15%, var(--surface)); color: var(--fg); }
-.note.okay { background: color-mix(in srgb, var(--ok) 13%, var(--surface)); }
-.note.bad { background: color-mix(in srgb, var(--bad) 13%, var(--surface)); }
-.note.ai { background: color-mix(in srgb, var(--ai) 16%, var(--surface)); }
-
-/* Week view */
-.weeknav { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 8px; }
-.weeknav .btn { padding: 0; }
-.weeknav .mid { text-align: center; }
-.stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; }
-.stat b { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.stat span { font-size: .8rem; color: var(--muted); }
-.day { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
-.day.is-today { border: 2px solid var(--ink); }
-.day.is-past { background: color-mix(in srgb, var(--surface) 70%, var(--bg)); }
-.day-head { display: flex; align-items: center; gap: 8px; }
-.day-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; flex: 1; text-transform: capitalize; }
-.day-name small { font-family: var(--font-body); font-weight: 500; font-size: .8rem; color: var(--muted); text-transform: none; margin-left: 6px; }
-.iconbtn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: transparent; display: grid; place-items: center; flex: none; }
-.pill { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; border-radius: 10px; padding: 10px; min-height: 52px; background: color-mix(in srgb, var(--c) 13%, var(--surface)); }
-.pill .ico { color: var(--c); }
-.pill.is-done { background: color-mix(in srgb, var(--c) 22%, var(--surface)); }
-.pill.is-missed { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bad) 55%, transparent); }
-.pill.is-moving { box-shadow: inset 0 0 0 3px var(--ink); }
-.pill.extra { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
-.pill-main { flex: 1; min-width: 0; }
-.pill-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
-.pill-sub { display: block; font-size: .82rem; color: var(--muted); }
-.addbtn { border: 1px dashed var(--line); background: transparent; border-radius: 10px; min-height: 44px; color: var(--muted); font-weight: 600; }
-.day.target { cursor: pointer; border: 2px dashed var(--ink); }
-.day.target.source { opacity: .55; }
-.movebar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ink); color: var(--on-ink); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
-.movebar span { flex: 1; font-weight: 600; }
-.movebar .btn { min-height: 40px; background: transparent; color: var(--on-ink); border-color: color-mix(in srgb, var(--on-ink) 40%, transparent); }
-
-/* Form */
-form { display: flex; flex-direction: column; gap: 20px; }
-.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.field > label, .lbl { font-weight: 600; font-size: .95rem; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-input[type="text"], input[type="date"], input[type="number"], input:not([type]), textarea, select {
-  font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  min-height: 52px; padding: 10px 14px; width: 100%; font-size: 1.1rem;
-}
-textarea { min-height: 80px; font-size: 1rem; resize: vertical; }
-input.big { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-input.ai, .ai-mark { box-shadow: 0 0 0 2px var(--ai); }
-.hint { font-size: .85rem; color: var(--muted); min-height: 1.1em; }
-.calc { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
-.seg button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; padding: 4px 6px; }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.sports button { min-height: 76px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 600; font-size: .9rem; padding: 4px; }
-.sports button .ico { width: 28px; height: 28px; color: var(--c); }
-.sports button[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: #fff; }
-.sports button[aria-pressed="true"] .ico { color: #fff; }
-.seg.feels { grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.seg.feels button { font-size: .85rem; padding: 4px 2px; }
-.rpe { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-.rpe button { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; padding: 0; }
-.rpe button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chips button { min-height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: .9rem; }
-.chips button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.toggle { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; flex: 1; }
-.toggle[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
-.reps-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.reps-list label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); font-weight: 600; }
-.reps-list input { min-height: 48px; font-size: 1.1rem; padding: 8px 10px; }
-.ex { gap: 10px; }
-.ex-head { display: flex; gap: 8px; align-items: center; }
-.ex-last { font-size: .88rem; color: var(--muted); background: var(--surface-2); border-radius: 10px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ex-last b { color: var(--fg); }
-.set { display: grid; grid-template-columns: 34px 1fr 1fr 40px; gap: 8px; align-items: center; }
-.set .k { font-family: var(--font-display); font-weight: 700; color: var(--muted); text-align: center; }
-.set input { min-height: 48px; font-size: 1.15rem; padding: 8px 10px; }
-.set-head { display: grid; grid-template-columns: 34px 1fr 1fr 40px; gap: 8px; font-size: .78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-.savebar { position: sticky; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 8px); display: flex; gap: 10px; z-index: 4; }
-.savebar .btn.primary { flex: 1; box-shadow: 0 6px 20px rgba(0,0,0,.18); font-size: 1.1rem; }
-.photo { display: flex; gap: 12px; align-items: center; }
-.photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
-
-/* Tabs */
-.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
-  padding: 0 max(8px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(8px, env(safe-area-inset-left, 0px));
-  display: grid; grid-template-columns: repeat(5, 1fr); }
-.tabs a { height: var(--tab-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: .72rem; font-weight: 600; color: var(--muted); text-decoration: none; }
-.tabs a .ico { width: 24px; height: 24px; }
-.tabs a[aria-current="page"] { color: var(--fg); }
-.tabs a.plus span.circle { width: 46px; height: 46px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; }
-.tabs a.plus .ico { width: 26px; height: 26px; }
-
-/* Sheet */
-.backdrop { position: fixed; inset: 0; background: rgba(5, 12, 18, .5); z-index: 20; }
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--bg); border-radius: 18px 18px 0 0; max-height: 88vh; overflow-y: auto;
-  padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
-.sheet-in { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-.sheet-grip { width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto; }
-.actions { display: flex; flex-direction: column; gap: 8px; }
-.actions .btn { justify-content: flex-start; }
-
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 84px); z-index: 30;
-  background: var(--ink); color: var(--on-ink); padding: 12px 18px; border-radius: 999px; font-weight: 600; max-width: calc(100% - 32px); text-align: center; }
-.banner { font-size: .85rem; color: var(--muted); text-align: center; }
-.skel { height: 160px; border-radius: var(--r); background: var(--surface-2); }
-.sum { font-size: 1rem; }
-.sum b { font-family: var(--font-display); font-size: 1.25rem; }
-.delta { font-weight: 600; font-size: .9rem; padding: 2px 8px; border-radius: 999px; margin-left: 4px; }
-.delta.up { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
-.delta.down { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.stile { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.stile-h { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; color: var(--c); }
-.stile-h .ico { width: 18px; height: 18px; }
-.stile b { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; }
-.stile .muted { font-size: .82rem; }
-.chart { width: 100%; height: auto; display: block; }
-.chart text { font-size: 9.5px; fill: var(--muted); font-family: var(--font-body); font-variant-numeric: tabular-nums; }
-.chart .g { stroke: var(--line); stroke-width: 1; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .82rem; color: var(--muted); }
-.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-.pseg { grid-template-columns: repeat(3, 1fr); }
-.vol { gap: 4px; }
-.volrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 104px; gap: 10px; align-items: center; background: none; border: 0; padding: 6px 0; text-align: left; min-height: 48px; }
-.vl { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; }
-.vl .ico { width: 18px; height: 18px; color: var(--c); }
-.vb { height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
-.vb i { display: block; height: 100%; background: var(--c); border-radius: 6px; }
-.vv { display: flex; flex-direction: column; text-align: right; line-height: 1.2; }
-.vv small { color: var(--muted); font-size: .75rem; }
-.recs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.rec { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rec b { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; }
-.rec-l { font-size: .85rem; font-weight: 600; color: var(--muted); overflow-wrap: anywhere; }
-.rec-s { font-size: .78rem; color: var(--muted); }
-div.rec b { color: var(--muted); }
-.filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.filters button { flex: none; }
-.dz { display: flex; flex-direction: column; gap: 10px; }
-textarea.dump { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; min-height: 160px; }
-
-@media (max-width: 380px) {
-  .today-desc { font-size: 1.75rem; }
-  .sports button { font-size: .8rem; }
-  .rpe button { font-size: 1rem; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .sheet { animation: up .18s ease-out; }
-  @keyframes up { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
-}
-</style>
-
-<main id="app" aria-live="polite"></main>
-
-<nav class="tabs" aria-label="Secciones">
-  <a href="#hoy" data-tab="hoy"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hoy</a>
-  <a href="#semana" data-tab="semana"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Semana</a>
-  <a href="#registrar" data-tab="registrar" class="plus" aria-label="Registrar sesión"><span class="circle"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></a>
-  <a href="#progreso" data-tab="progreso"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Progreso</a>
-  <a href="#datos" data-tab="datos"><svg class="ico" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Datos</a>
-</nav>
-
-<div id="sheet-root"></div>
-<div id="toast-root"></div>
-<datalist id="ex-names"></datalist>
-
-<script>
 (() => {
 'use strict';
 
-// ===================== Deportes =====================
+// ===================== Iconos =====================
 const ICONS = {
   swim: '<circle cx="17" cy="5.5" r="2"/><path d="M6 12l4-4 3 2 3-3"/><path d="M2 16c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><path d="M2 20c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/>',
   bike: '<circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5L9 9h6l3.5 7.5M9 9l3.5 7.5h-7M13.5 5.5h2.5L15 9"/>',
   run: '<circle cx="15" cy="4.5" r="2"/><path d="M7.5 21l3-6 3 2.5V21M10.5 15l1.5-5.5 3.5 3 3.5-1M12 9.5L8 10.5 6 14"/>',
   strength: '<path d="M2.5 10v4M5.5 7v10M18.5 7v10M21.5 10v4M5.5 12h13"/>',
+  hike: '<path d="M3 20l6-10 4 6 3-4 5 8z"/><circle cx="17" cy="5" r="2"/>',
+  racket: '<ellipse cx="10" cy="9" rx="6" ry="6"/><path d="M14.5 13.5L21 20"/><circle cx="19" cy="6" r="1.6"/>',
+  ball: '<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z"/><path d="M12 3v4M16 10l4.5-1.5M14.5 14.5l2.5 4M9.5 14.5L7 18.5M8 10L3.5 8.5"/>',
+  climb: '<circle cx="9" cy="4.5" r="2"/><path d="M9 7v6l-3 7M9 13l4 3v4M9 9l5-3 2-3M9 10L5 8"/><path d="M19 3v18"/>',
+  yoga: '<circle cx="12" cy="5" r="2"/><path d="M12 7v6M6 10l6 3 6-3M5 19c2-3 5-4 7-4s5 1 7 4"/>',
+  row: '<path d="M3 18c3 1.5 15 1.5 18 0"/><path d="M5 9l12 6M17 15l3 1.5"/><circle cx="9" cy="7" r="2"/>',
+  ski: '<circle cx="15" cy="4.5" r="2"/><path d="M4 19l16 2M7 12l4 2 2-5 4 3M11 14l-1 5"/>',
+  skate: '<path d="M5 15h11c2 0 3-1 3-3V6M5 15V7h6v4h5"/><circle cx="7" cy="19" r="1.6"/><circle cx="16" cy="19" r="1.6"/>',
+  box: '<path d="M7 7a4 4 0 018 0v4H7z"/><path d="M7 11v4a3 3 0 003 3h3a3 3 0 003-3v-4M10 18v3h4v-3"/>',
+  heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.5-7 10-7 10z"/>',
+  bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
 };
-const SPORTS = {
-  swim: { label: 'Natación', types: ['Series', 'Continuo', 'Técnica'], unit: 'm', ph: 'p. ej. 10x100 a 1:45' },
-  run: { label: 'Carrera', types: ['Rodaje suave', 'Largo', 'Series', 'Competición'], unit: 'km', ph: 'p. ej. 6x400 a 4:15' },
-  bike: { label: 'Ciclismo', types: ['Rodaje', 'Largo', 'Series', 'Competición'], unit: 'km', ph: 'p. ej. 90 km Z2' },
-  strength: { label: 'Fuerza', types: ['Pierna', 'Torso', 'Cuerpo completo', 'Core'], unit: null, ph: 'p. ej. Pierna completa' },
-};
-const SPORT_KEYS = Object.keys(SPORTS);
-const FEELS = ['Muy mal', 'Mal', 'Normal', 'Bien', 'Genial'];
-const RPE_TXT = ['', 'Muy suave', 'Muy suave', 'Suave', 'Moderado', 'Moderado', 'Algo duro', 'Duro', 'Muy duro', 'Casi máximo', 'Máximo'];
-const ico = (k, extra = '') => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${ICONS[k] || ''}</svg>`;
+const ICON_NAMES = Object.keys(ICONS);
+const icoName = (name, extra = '') => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${ICONS[name] || ICONS.bolt}</svg>`;
 const ICO_CHECK = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const ICO_MORE = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>';
 const ICO_L = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
 const ICO_R = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
-const ICO_CAM = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+
+// ===================== Deportes (configurables) =====================
+// Cómo se mide cada deporte. paceM: metros a los que se refiere el ritmo.
+const METRICS = {
+  pace_km: { label: 'Distancia y ritmo por km', unit: 'km', paceM: 1000, paceLbl: '/km', ex: 'carrera, trail' },
+  pace_100m: { label: 'Distancia y ritmo por 100 m', unit: 'm', paceM: 100, paceLbl: '/100m', ex: 'natación' },
+  pace_500m: { label: 'Distancia y ritmo por 500 m', unit: 'm', paceM: 500, paceLbl: '/500m', ex: 'remo' },
+  speed: { label: 'Distancia y velocidad (km/h)', unit: 'km', ex: 'bici, patines, esquí' },
+  time: { label: 'Solo tiempo', ex: 'pádel, fútbol, yoga' },
+  strength: { label: 'Ejercicios con series, reps y kg', ex: 'gimnasio' },
+};
+const isDistMetric = (m) => ['pace_km', 'pace_100m', 'pace_500m', 'speed'].includes(m);
+const isPaceMetric = (m) => ['pace_km', 'pace_100m', 'pace_500m'].includes(m);
+const COLORS = ['blue', 'teal', 'orange', 'violet', 'rose', 'amber', 'green', 'indigo', 'brown', 'slate'];
+const COLOR_NAMES = { blue: 'Azul', teal: 'Verde azulado', orange: 'Naranja', violet: 'Violeta', rose: 'Rosa', amber: 'Ámbar', green: 'Verde', indigo: 'Índigo', brown: 'Marrón', slate: 'Gris' };
+
+const PRESETS = [
+  { key: 'run', label: 'Carrera', icon: 'run', color: 'orange', metric: 'pace_km', intervals: true, types: ['Rodaje suave', 'Largo', 'Series', 'Competición'], chips: [5, 8, 10, 12, 15, 21.1], records: [5000, 10000, 21097.5, 42195], ph: 'p. ej. 6x400 a 4:15' },
+  { key: 'swim', label: 'Natación', icon: 'swim', color: 'blue', metric: 'pace_100m', intervals: true, types: ['Series', 'Continuo', 'Técnica'], gear: ['Pull buoy', 'Palas'], chips: [1000, 1500, 2000, 2500, 3000, 3800], records: [400, 1000, 1500, 1900, 2000, 3000, 3800], ph: 'p. ej. 10x100 a 1:45' },
+  { key: 'bike', label: 'Ciclismo', icon: 'bike', color: 'teal', metric: 'speed', elev: true, types: ['Rodaje', 'Largo', 'Series', 'Competición'], chips: [30, 40, 60, 90, 120], ph: 'p. ej. 90 km Z2' },
+  { key: 'strength', label: 'Fuerza', icon: 'strength', color: 'violet', metric: 'strength', types: ['Pierna', 'Torso', 'Cuerpo completo', 'Core'], ph: 'p. ej. Pierna completa' },
+  { key: 'hike', label: 'Senderismo / Trail', icon: 'hike', color: 'green', metric: 'pace_km', elev: true, types: ['Ruta', 'Trail', 'Montaña'], chips: [8, 12, 15, 20, 25], ph: 'p. ej. Ruta de 15 km' },
+  { key: 'padel', label: 'Pádel', icon: 'racket', color: 'amber', metric: 'time', types: ['Partido', 'Clase', 'Entreno'], ph: 'p. ej. Partido 2 sets' },
+  { key: 'tennis', label: 'Tenis', icon: 'racket', color: 'green', metric: 'time', types: ['Partido', 'Clase', 'Entreno'], ph: 'p. ej. Clase de revés' },
+  { key: 'football', label: 'Fútbol', icon: 'ball', color: 'green', metric: 'time', types: ['Partido', 'Entreno'], ph: 'p. ej. Partido 7' },
+  { key: 'basket', label: 'Baloncesto', icon: 'ball', color: 'orange', metric: 'time', types: ['Partido', 'Entreno'], ph: 'p. ej. Entreno de tiro' },
+  { key: 'climb', label: 'Escalada', icon: 'climb', color: 'brown', metric: 'time', types: ['Bloque', 'Vía', 'Rocódromo'], ph: 'p. ej. Bloque V4' },
+  { key: 'yoga', label: 'Yoga / Movilidad', icon: 'yoga', color: 'indigo', metric: 'time', types: ['Yoga', 'Movilidad', 'Estiramientos'], ph: 'p. ej. Movilidad de cadera' },
+  { key: 'row', label: 'Remo', icon: 'row', color: 'indigo', metric: 'pace_500m', intervals: true, types: ['Continuo', 'Series'], chips: [2000, 5000, 10000], records: [500, 2000, 5000, 10000], ph: 'p. ej. 4x1000 a 1:55' },
+  { key: 'owswim', label: 'Aguas abiertas', icon: 'swim', color: 'indigo', metric: 'pace_100m', types: ['Continuo', 'Competición'], chips: [750, 1500, 1900, 3800], records: [750, 1500, 1900, 3800], ph: 'p. ej. 2 km en el mar' },
+  { key: 'ski', label: 'Esquí', icon: 'ski', color: 'blue', metric: 'speed', elev: true, types: ['Pista', 'Travesía', 'Fondo'], ph: 'p. ej. Travesía' },
+  { key: 'skate', label: 'Patinaje', icon: 'skate', color: 'rose', metric: 'speed', types: ['Rodaje', 'Series'], ph: 'p. ej. 20 km' },
+  { key: 'hiit', label: 'Crossfit / HIIT', icon: 'bolt', color: 'rose', metric: 'time', types: ['WOD', 'HIIT', 'Circuito'], ph: 'p. ej. WOD Murph' },
+  { key: 'box', label: 'Boxeo / Artes marciales', icon: 'box', color: 'slate', metric: 'time', types: ['Técnica', 'Saco', 'Sparring'], ph: 'p. ej. Saco 6x3 min' },
+  { key: 'cardio', label: 'Elíptica / Cardio', icon: 'heart', color: 'slate', metric: 'time', types: ['Suave', 'Intervalos'], ph: 'p. ej. 40 min suave' },
+];
+const PRESET_MAP = Object.fromEntries(PRESETS.map((p) => [p.key, p]));
+const DEFAULT_ACTIVE = ['swim', 'run', 'bike', 'strength'];
+
+// Ajustes guardados: deportes (activos y ocultos), objetivo semanal y última copia.
+let settings = { sports: DEFAULT_ACTIVE.map((k) => ({ ...PRESET_MAP[k] })), goalDays: 6, lastExport: null };
+let SPORTS = {};
+let SPORT_KEYS = []; // deportes activos, en orden
+function applySports() {
+  SPORTS = {};
+  for (const s of settings.sports) SPORTS[s.key] = s;
+  SPORT_KEYS = settings.sports.filter((s) => !s.hidden).map((s) => s.key);
+  let css = '';
+  for (const s of settings.sports) css += `.s-${s.key}{--c:var(--col-${COLORS.includes(s.color) ? s.color : 'slate'})}`;
+  let el = document.getElementById('sport-css');
+  if (!el) { el = document.createElement('style'); el.id = 'sport-css'; document.head.appendChild(el); }
+  el.textContent = css;
+}
+const sp = (k) => SPORTS[k] || PRESET_MAP[k] || { key: k, label: k || 'Otro', icon: 'bolt', color: 'slate', metric: 'time', types: [] };
+const ico = (k, extra = '') => icoName(sp(k).icon || k, extra);
+const sportColor = (k) => `var(--col-${sp(k).color || 'slate'})`;
+const metricOf = (k) => sp(k).metric || 'time';
+const FEELS = ['Muy mal', 'Mal', 'Normal', 'Bien', 'Genial'];
+const RPE_TXT = ['', 'Muy suave', 'Muy suave', 'Suave', 'Moderado', 'Moderado', 'Algo duro', 'Duro', 'Muy duro', 'Casi máximo', 'Máximo'];
 
 // ===================== Utilidades =====================
 const $ = (s, r = document) => r.querySelector(s);
@@ -385,22 +144,33 @@ function parsePace(str) {
 const fmtPace = (sec) => (sec ? `${Math.floor(sec / 60)}:${pad2(Math.round(sec % 60) % 60)}` : '');
 const num = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null; };
 
-function paceOf(s) {
-  if (!s.durationSec || !s.distanceM) return '';
-  if (s.sport === 'run') return `${fmtPace(s.durationSec / (s.distanceM / 1000))} /km`;
-  if (s.sport === 'swim') return `${fmtPace(s.durationSec / (s.distanceM / 100))} /100m`;
-  if (s.sport === 'bike') return `${nf((s.distanceM / 1000) / (s.durationSec / 3600), 1)} km/h`;
-  return '';
+// Ritmo (s por unidad) o velocidad (km/h) de una sesión, como número.
+function paceVal(s) {
+  if (!s.durationSec || !s.distanceM) return null;
+  const m = METRICS[metricOf(s.sport)];
+  if (m?.paceM) return s.durationSec / (s.distanceM / m.paceM);
+  if (metricOf(s.sport) === 'speed') return (s.distanceM / 1000) / (s.durationSec / 3600);
+  return null;
 }
-const distTxt = (s) => (!s.distanceM ? '' : s.sport === 'swim' ? `${nf(s.distanceM)} m` : `${nf(s.distanceM / 1000, 2)} km`);
+function paceOf(s) {
+  const v = paceVal(s);
+  if (v == null) return '';
+  const m = METRICS[metricOf(s.sport)];
+  return m.paceM ? `${fmtPace(v)} ${m.paceLbl}` : `${nf(v, 1)} km/h`;
+}
+const distUnit = (k) => METRICS[metricOf(k)]?.unit || 'km';
+const distFmt = (k, meters) => (distUnit(k) === 'm' ? `${nf(meters)} m` : `${nf(meters / 1000, 2)} km`);
+const distTxt = (s) => (!s.distanceM ? '' : distFmt(s.sport, s.distanceM));
 function strengthTotals(s) {
   let sets = 0, kg = 0;
   for (const ex of s.exercises || []) for (const st of ex.sets || []) { sets++; kg += (Number(st.reps) || 0) * (Number(st.kg) || 0); }
   return { ex: (s.exercises || []).length, sets, kg };
 }
+const gearOf = (s) => s.gear || [s.pullbuoy && 'Pull buoy', s.paddles && 'Palas'].filter(Boolean);
 function summary(s) {
   const p = [];
-  if (s.sport === 'strength') {
+  const metric = metricOf(s.sport);
+  if (metric === 'strength') {
     const t = strengthTotals(s);
     if (t.ex) p.push(`${t.ex} ejercicio${t.ex === 1 ? '' : 's'}`);
     if (t.sets) p.push(`${t.sets} series`);
@@ -410,85 +180,61 @@ function summary(s) {
     if (s.distanceM) p.push(distTxt(s));
     if (s.durationSec) p.push(fmtDur(s.durationSec));
     const pc = paceOf(s); if (pc) p.push(pc);
-    if (s.sport === 'bike' && s.elevationM) p.push(`+${nf(s.elevationM)} m`);
-    if (s.sport === 'run' && s.type === 'Series' && s.reps?.count) p.push(`${s.reps.count}x${s.reps.distM || '?'}`);
+    if (s.elevationM) p.push(`+${nf(s.elevationM)} m`);
+    if (s.type === 'Series' && s.reps?.count) p.push(`${s.reps.count}x${s.reps.distM || '?'}`);
   }
   if (s.rpe) p.push(`RPE ${s.rpe}`);
   return p.join(' · ');
 }
-const sessionTitle = (s) => s.title || [SPORTS[s.sport]?.label, s.type].filter(Boolean).join(' · ');
+const sessionTitle = (s) => s.title || [sp(s.sport).label, s.type].filter(Boolean).join(' · ');
 
-// ===================== Datos (persistentes) =====================
+// ===================== Datos (en el dispositivo) =====================
 // Colecciones: sessions (entrenos hechos), plan (sesiones planificadas), days (trabajo/libre por fecha).
 const COLLS = ['sessions', 'plan', 'days'];
 const data = { sessions: new Map(), plan: new Map(), days: new Map() };
-let store = 'loading'; // 'cloud' | 'local' | 'loading'
-let db = null;
-let loadNote = '';
-let sampler = null, imgLimits = null;
+let store = 'loading';
 const LS_KEY = 'cuaderno-tri:v1';
-// Fuera de Claude (p. ej. GitHub Pages) la app funciona sola, con los datos en el dispositivo.
-const STANDALONE = !window.claude?.use;
+const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
-function useLocal() {
-  store = 'local';
-  try { navigator.storage?.persist?.(); } catch { /* opcional */ }
+function loadAll() {
   try {
     const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
     for (const c of COLLS) data[c] = new Map((raw[c] || []).map((o) => [o.id, o]));
   } catch { /* sin almacenamiento disponible */ }
-  render();
+  try {
+    const st = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null');
+    if (st && Array.isArray(st.sports) && st.sports.length) settings = { ...settings, ...st };
+  } catch { /* usar ajustes por defecto */ }
+  // Deportes usados en sesiones que no estén en la lista (p. ej. tras importar).
+  for (const s of data.sessions.values()) ensureSport(s.sport);
+  applySports();
+  store = 'local';
+  try { navigator.storage?.persist?.(); } catch { /* opcional */ }
 }
 function saveLocal() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(COLLS.map((c) => [c, [...data[c].values()]])))); } catch { /* ignorar */ }
+  try { localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(COLLS.map((c) => [c, [...data[c].values()]])))); }
+  catch { toast('No se pudo guardar: el almacenamiento del navegador está lleno o bloqueado.'); }
 }
-
-async function initData() {
-  const c = window.claude;
-  if (!c?.use) return useLocal();
-  const [dbNs] = await Promise.all([
-    c.use('db').catch(() => null),
-    c.use('sample').then(async (s) => { sampler = s; if (s) imgLimits = (await s.limits().catch(() => null))?.images || null; }).catch(() => null),
-  ]);
-  if (!dbNs) return useLocal();
-  db = dbNs;
-  const seen = new Set(), confirmed = new Set();
-  const timer = setTimeout(() => {
-    if (confirmed.size < COLLS.length) { loadNote = 'No se pueden cargar tus datos todavía. Lo que ves puede no estar al día.'; if (store === 'loading') store = 'cloud'; render(); }
-  }, 10000);
-  for (const coll of COLLS) {
-    db.collection(coll).onSnapshot((snap) => {
-      data[coll] = new Map(snap.docs.map((d) => [d.id, { ...d.data(), id: d.id }]));
-      seen.add(coll);
-      if (!snap.metadata.fromCache) confirmed.add(coll);
-      if (confirmed.size === COLLS.length) { clearTimeout(timer); loadNote = ''; }
-      if (seen.size === COLLS.length) store = 'cloud';
-      scheduleRender();
-    }, (e) => {
-      clearTimeout(timer);
-      store = 'cloud';
-      loadNote = e.code === 'revoked' ? 'Ya no tienes acceso a estos datos.' : 'No se pudieron cargar tus datos. Recarga la página más tarde.';
-      scheduleRender();
-    });
-  }
+function saveSettings() {
+  try { localStorage.setItem(LS_SETTINGS, JSON.stringify(settings)); } catch { /* ignorar */ }
+  applySports();
 }
-
+function ensureSport(key) {
+  if (!key || settings.sports.some((s) => s.key === key)) return;
+  settings.sports.push(PRESET_MAP[key] ? { ...PRESET_MAP[key] } : { key, label: key, icon: 'bolt', color: 'slate', metric: 'time', types: [] });
+}
 async function put(coll, obj) {
   obj = clone(obj);
   data[coll].set(obj.id, obj);
-  if (store !== 'cloud') { saveLocal(); return; }
-  const { id, ...rest } = obj;
-  try { await db.collection(coll).doc(id).set(rest); }
-  catch (e) { toast(e.code === 'quota_exceeded' ? 'Se ha llenado el espacio de datos. Exporta y borra sesiones antiguas.' : 'No se pudo guardar. Revisa la conexión e inténtalo de nuevo.'); throw e; }
+  saveLocal();
 }
 async function del(coll, id) {
   data[coll].delete(id);
-  if (store !== 'cloud') { saveLocal(); return; }
-  try { await db.collection(coll).doc(id).delete(); } catch { toast('No se pudo borrar. Inténtalo de nuevo.'); }
+  saveLocal();
 }
-async function pool(tasks, n = 4) {
-  const q = [...tasks]; let errors = 0;
-  await Promise.all(Array.from({ length: n }, async () => { while (q.length) { try { await q.shift()(); } catch { errors++; } } }));
+async function pool(tasks) {
+  let errors = 0;
+  for (const t of tasks) { try { await t(); } catch { errors++; } }
   return errors;
 }
 
@@ -519,11 +265,14 @@ function weekInfo(mon) {
   return { days, planned, done, missed, train, free };
 }
 function goalNote(w, compact = false) {
-  if (w.train > 6) return { cls: 'warn', txt: `Te pasas: ${w.train} días de entreno. El objetivo es 6 días y 1 de descanso.` };
-  if (w.train === 6) return { cls: 'okay', txt: 'Semana en objetivo: 6 días de entreno y 1 de descanso.' };
-  const missing = 6 - w.train;
-  const canFill = Math.max(0, w.free.length - 1); // deja siempre un día de descanso
-  let txt = `Te ${missing === 1 ? 'falta 1 día' : `faltan ${missing} días`} para llegar a 6.`;
+  const G = settings.goalDays || 6;
+  const rest = 7 - G;
+  const restTxt = rest ? ` y ${rest} de descanso` : '';
+  if (w.train > G) return { cls: 'warn', txt: `Te pasas: ${w.train} días de entreno. Tu objetivo es ${G}${restTxt}.` };
+  if (w.train === G) return { cls: 'okay', txt: `Semana en objetivo: ${G} días de entreno${restTxt}.` };
+  const missing = G - w.train;
+  const canFill = Math.max(0, w.free.length - (7 - G)); // respeta los días de descanso del objetivo
+  let txt = `Te ${missing === 1 ? 'falta 1 día' : `faltan ${missing} días`} para llegar a ${G}.`;
   if (!compact && canFill > 0) {
     const names = w.free.map((d) => `${dowOf(d)} ${fromISO(d).getDate()}${dayStatus(d) === 'off' ? ' (libras)' : ''}`).join(', ');
     txt += ` Días sin sesión: ${names}.`;
@@ -536,7 +285,7 @@ function lastExercise(name, excludeId, beforeDate) {
   const key = name.trim().toLowerCase();
   if (!key) return null;
   for (const s of sessionsDesc()) {
-    if (s.id === excludeId || s.sport !== 'strength') continue;
+    if (s.id === excludeId || metricOf(s.sport) !== 'strength') continue;
     if (beforeDate && s.date > beforeDate) continue;
     const ex = (s.exercises || []).find((e) => (e.name || '').trim().toLowerCase() === key);
     if (ex && ex.sets?.length) return { date: s.date, sets: ex.sets };
@@ -561,7 +310,8 @@ let moving = null; // {kind:'item', id} | {kind:'day', date}
 function routeFromHash() {
   const r = location.hash.slice(1) || 'hoy';
   if (r === 'historial') return 'progreso';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'datos'].includes(r) ? r : 'hoy';
+  if (r === 'datos') return 'ajustes';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -593,10 +343,8 @@ function render(fromData = false) {
   if (fromData && route === 'registrar' && $('#session-form')) { refreshDatalist(); return; }
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
-  const banner = store === 'local' && !STANDALONE
-    ? '<p class="banner">Modo local: los datos se guardan solo en este navegador. Abre la app en Claude para guardarlos en tu cuenta.</p>'
-    : loadNote ? `<div class="note warn">${esc(loadNote)}</div>` : '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, datos: viewData };
+  const banner = '';
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -623,9 +371,9 @@ function viewToday(app, banner) {
     const done = planState(p) === 'done';
     const s = done ? data.sessions.get(p.sessionId) : null;
     return `<article class="today s-${p.sport}">
-      <div class="today-band">${ico(p.sport)}<span class="kind">${esc(SPORTS[p.sport].label)}${p.type ? ' · ' + esc(p.type) : ''}</span></div>
+      <div class="today-band">${ico(p.sport)}<span class="kind">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}</span></div>
       <div class="today-body">
-        <div class="today-desc">${esc(p.desc || p.type || SPORTS[p.sport].label)}</div>
+        <div class="today-desc">${esc(p.desc || p.type || sp(p.sport).label)}</div>
         ${done
           ? `<div class="done-line">${ICO_CHECK} Hecha · ${esc(summary(s))}</div>
              <button class="btn block" data-edit="${esc(s.id)}">Ver o corregir el registro</button>`
@@ -646,7 +394,7 @@ function viewToday(app, banner) {
       <div class="sec-head"><h2>Pendientes de esta semana</h2></div>
       <div class="list">${missed.map((p) => `<div class="item s-${p.sport}">
         <span class="tile">${ico(p.sport)}</span>
-        <span class="item-main"><span class="item-title">${esc(p.desc || p.type || SPORTS[p.sport].label)}</span><span class="item-sub">${esc(shortDate(p.date))} · no registrada</span></span>
+        <span class="item-main"><span class="item-title">${esc(p.desc || p.type || sp(p.sport).label)}</span><span class="item-sub">${esc(shortDate(p.date))} · no registrada</span></span>
         <button class="btn small" data-today="${esc(p.id)}">A hoy</button>
         <button class="iconbtn" data-sheet="${esc(p.id)}" aria-label="Más opciones">${ICO_MORE}</button>
       </div>`).join('')}</div></section>` : '';
@@ -676,6 +424,7 @@ function viewToday(app, banner) {
       </div>
       <div class="note ${goal.cls}">${esc(goal.txt)}</div>
     </section>
+    ${backupNote()}
     ${homeStats(t)}
     ${recent.length ? `<section><div class="sec-head"><h2>Últimas sesiones</h2><a class="muted" href="#progreso" data-prog="all">Todas</a></div><div class="list">${recent.map(sessionRow).join('')}</div></section>` : ''}`;
 
@@ -686,7 +435,7 @@ function planRow(p) {
   const st = planState(p);
   const badge = st === 'done' ? `<span class="badge done">${ICO_CHECK.replace('class="ico"', 'class="ico" style="width:14px;height:14px"')}Hecha</span>` : st === 'missed' ? '<span class="badge missed">No hecha</span>' : '';
   return `<button class="item s-${p.sport}" data-sheet="${esc(p.id)}"><span class="tile">${ico(p.sport)}</span>
-    <span class="item-main"><span class="item-title">${esc(p.desc || p.type || SPORTS[p.sport].label)}</span><span class="item-sub">${esc(SPORTS[p.sport].label)}${p.type ? ' · ' + esc(p.type) : ''}</span></span>${badge}</button>`;
+    <span class="item-main"><span class="item-title">${esc(p.desc || p.type || sp(p.sport).label)}</span><span class="item-sub">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}</span></span>${badge}</button>`;
 }
 function sessionRow(s) {
   return `<button class="item s-${s.sport}" data-edit="${esc(s.id)}"><span class="tile">${ico(s.sport)}</span>
@@ -738,8 +487,8 @@ function viewWeek(app, banner) {
         const s = ps === 'done' ? data.sessions.get(p.sessionId) : null;
         return `<button class="pill s-${p.sport} ${ps === 'done' ? 'is-done' : ''} ${ps === 'missed' ? 'is-missed' : ''} ${moving?.id === p.id ? 'is-moving' : ''}" data-sheet="${esc(p.id)}">
           ${ico(p.sport)}
-          <span class="pill-main"><span class="pill-title">${esc(p.desc || p.type || SPORTS[p.sport].label)}</span>
-          <span class="pill-sub">${esc(SPORTS[p.sport].label)}${p.type ? ' · ' + esc(p.type) : ''}${s ? ' · ' + esc(summary(s)) : ''}</span></span>
+          <span class="pill-main"><span class="pill-title">${esc(p.desc || p.type || sp(p.sport).label)}</span>
+          <span class="pill-sub">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}${s ? ' · ' + esc(summary(s)) : ''}</span></span>
           ${ps === 'done' ? '<span class="badge done">Hecha</span>' : ps === 'missed' ? '<span class="badge missed">No hecha</span>' : ''}
         </button>`;
       }).join('')}
@@ -748,7 +497,7 @@ function viewWeek(app, banner) {
     </div>`;
   }).join('');
 
-  const moveTxt = moving?.kind === 'item' && mv ? `Toca el día al que mover «${mv.desc || mv.type || SPORTS[mv.sport].label}»` : moving?.kind === 'day' ? `Toca el día con el que intercambiar el ${shortDate(moving.date)}` : '';
+  const moveTxt = moving?.kind === 'item' && mv ? `Toca el día al que mover «${mv.desc || mv.type || sp(mv.sport).label}»` : moving?.kind === 'day' ? `Toca el día con el que intercambiar el ${shortDate(moving.date)}` : '';
 
   app.innerHTML = `${banner}
     <div class="weeknav">
@@ -759,7 +508,7 @@ function viewWeek(app, banner) {
     ${moving ? `<div class="movebar"><span>${esc(moveTxt)}</span><button class="btn" id="cancel-move">Cancelar</button></div>` : ''}
     <div class="stats3">
       <div class="stat"><b>${w.done}/${w.planned}</b><span>plan cumplido</span></div>
-      <div class="stat"><b>${w.train}/6</b><span>días de entreno</span></div>
+      <div class="stat"><b>${w.train}/${settings.goalDays || 6}</b><span>días de entreno</span></div>
       <div class="stat"><b>${w.missed}</b><span>no hechas</span></div>
     </div>
     <div class="note ${goal.cls}">${esc(goal.txt)}</div>
@@ -846,7 +595,7 @@ function planSheet(id) {
   const st = planState(p);
   const s = st === 'done' ? data.sessions.get(p.sessionId) : null;
   openSheet(`<div class="row s-${p.sport}" style="align-items:center"><span class="tile">${ico(p.sport)}</span>
-      <div style="flex:1;min-width:0"><div class="eyebrow">${esc(SPORTS[p.sport].label)}${p.type ? ' · ' + esc(p.type) : ''} · ${esc(shortDate(p.date))}</div><h2>${esc(p.desc || p.type || SPORTS[p.sport].label)}</h2></div></div>
+      <div style="flex:1;min-width:0"><div class="eyebrow">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''} · ${esc(shortDate(p.date))}</div><h2>${esc(p.desc || p.type || sp(p.sport).label)}</h2></div></div>
     ${s ? `<div class="note okay">Hecha: ${esc(summary(s))}</div>` : st === 'missed' ? '<div class="note bad">No registrada. Si la hiciste, regístrala; si no, muévela o bórrala.</div>' : ''}
     <div class="actions">
       ${s ? '<button class="btn" id="ps-view">Ver o corregir el registro</button>' : `<button class="btn sport s-${p.sport}" id="ps-do">${ICO_CHECK} Hecha · registrar</button>
@@ -871,12 +620,12 @@ function planSheet(id) {
 }
 
 function planEditor(init) {
-  const p = { id: init.id || null, date: init.date || today(), sport: init.sport || 'run', type: init.type || '', desc: init.desc || '' };
+  const p = { id: init.id || null, date: init.date || today(), sport: init.sport || SPORT_KEYS[0], type: init.type || '', desc: init.desc || '' };
   const draw = (el) => {
     el.innerHTML = `<div class="sheet-grip"></div><h2>${p.id ? 'Editar sesión planificada' : 'Planificar sesión'}</h2>
-      <div class="sports">${SPORT_KEYS.map((k) => `<button type="button" class="s-${k}" data-sp="${k}" aria-pressed="${p.sport === k}">${ico(k)}${SPORTS[k].label}</button>`).join('')}</div>
-      <div class="field"><span class="lbl">Tipo</span><div class="chips">${SPORTS[p.sport].types.map((t) => `<button type="button" data-ty="${esc(t)}" aria-pressed="${p.type === t}">${esc(t)}</button>`).join('')}</div></div>
-      <div class="field"><label for="pe-desc">Descripción</label><input id="pe-desc" type="text" value="${esc(p.desc)}" placeholder="${esc(SPORTS[p.sport].ph)}" maxlength="120" autocomplete="off"></div>
+      <div class="sports">${SPORT_KEYS.map((k) => `<button type="button" class="s-${k}" data-sp="${k}" aria-pressed="${p.sport === k}">${ico(k)}<span>${esc(sp(k).label)}</span></button>`).join('')}</div>
+      <div class="field"><span class="lbl">Tipo</span><div class="chips">${(sp(p.sport).types || []).map((t) => `<button type="button" data-ty="${esc(t)}" aria-pressed="${p.type === t}">${esc(t)}</button>`).join('')}</div></div>
+      <div class="field"><label for="pe-desc">Descripción</label><input id="pe-desc" type="text" value="${esc(p.desc)}" placeholder="${esc(sp(p.sport).ph || 'Descripción breve')}" maxlength="120" autocomplete="off"></div>
       <div class="field"><label for="pe-date">Día</label><input id="pe-date" type="date" value="${esc(p.date)}"></div>
       <button class="btn primary block" id="pe-save">${p.id ? 'Guardar cambios' : 'Añadir al plan'}</button>`;
     $$('[data-sp]', el).forEach((b) => (b.onclick = () => { p.desc = $('#pe-desc', el).value; p.date = $('#pe-date', el).value; p.sport = b.dataset.sp; p.type = ''; draw(el); }));
@@ -935,18 +684,24 @@ function clearWeekSheet() {
 }
 
 // ===================== REGISTRO =====================
+const firstSport = () => SPORT_KEYS[0] || 'run';
 function newDraft(o) {
   return {
-    id: null, sport: o.sport || 'run', date: o.date || today(), title: o.title || '', type: o.type || '',
+    id: null, sport: o.sport || lastSport() || firstSport(), date: o.date || today(), title: o.title || '', type: o.type || '',
     durationSec: null, distanceM: null, elevationM: null, rpe: null, feel: null, notes: '',
-    pullbuoy: false, paddles: false, reps: { count: null, distM: null, paces: [] },
-    exercises: [], planId: o.planId || null, ai: [], aiMsg: '',
+    gear: [], reps: { count: null, distM: null, paces: [] },
+    exercises: [], planId: o.planId || null,
   };
+}
+// El deporte de la última sesión registrada, para ahorrar un toque.
+function lastSport() {
+  const s = sessionsDesc()[0];
+  return s && SPORT_KEYS.includes(s.sport) ? s.sport : null;
 }
 function startFromPlan(p) {
   if (!p) return;
   draft = newDraft({ sport: p.sport, date: p.date, type: p.type, title: p.desc, planId: p.id });
-  if (p.sport === 'run' && p.type === 'Series') {
+  if (sp(p.sport).intervals && p.type === 'Series') {
     const m = /(\d+)\s*[x×]\s*(\d+)/i.exec(p.desc || '');
     if (m) { draft.reps.count = Number(m[1]); draft.reps.distM = Number(m[2]); }
   }
@@ -956,7 +711,8 @@ function startFromPlan(p) {
 function editSession(id) {
   const s = data.sessions.get(id);
   if (!s) return;
-  draft = { ...newDraft({}), ...clone(s), ai: [], aiMsg: '' };
+  draft = { ...newDraft({}), ...clone(s) };
+  draft.gear = gearOf(s);
   draft.reps = draft.reps || { count: null, distM: null, paces: [] };
   draft.exercises = draft.exercises || [];
   closeSheet();
@@ -967,84 +723,81 @@ function refreshDatalist() {
   for (const s of data.sessions.values()) for (const e of s.exercises || []) if (e.name) names.add(e.name.trim());
   $('#ex-names').innerHTML = [...names].sort().map((n) => `<option value="${esc(n)}"></option>`).join('');
 }
+const repChips = (metric) => (metric === 'pace_100m' ? [50, 100, 200, 400] : metric === 'pace_500m' ? [250, 500, 1000, 2000] : [200, 400, 800, 1000, 2000]);
 
 function viewForm(app, banner) {
   if (!draft) draft = newDraft({});
   const d = draft;
-  const sp = SPORTS[d.sport];
-  const aiCls = (f) => (d.ai.includes(f) ? 'ai' : '');
+  if (!SPORT_KEYS.includes(d.sport) && !d.id) d.sport = firstSport();
+  const S = sp(d.sport);
+  const metric = S.metric || 'time';
+  const M = METRICS[metric] || {};
   refreshDatalist();
   const plan = d.planId ? data.plan.get(d.planId) : null;
+  const unitM = M.unit === 'm';
+  const distVal = d.distanceM ? (unitM ? d.distanceM : +(d.distanceM / 1000).toFixed(3)) : '';
+  const sportKeys = SPORT_KEYS.includes(d.sport) ? SPORT_KEYS : [...SPORT_KEYS, d.sport];
 
-  const distChips = d.sport === 'swim' ? [1000, 1500, 2000, 2500, 3000, 3800] : d.sport === 'run' ? [5, 8, 10, 12, 15, 21.1] : d.sport === 'bike' ? [30, 40, 60, 90, 120] : [];
-  const distVal = d.distanceM ? (d.sport === 'swim' ? d.distanceM : +(d.distanceM / 1000).toFixed(3)) : '';
-
-  const photo = (imgLimits && sampler) ? `<div class="box">
-      <div class="photo">
-        ${d.photoUrl ? `<img src="${esc(d.photoUrl)}" alt="Foto del reloj">` : ''}
-        <div style="flex:1;min-width:0"><b>Rellenar con una foto del reloj</b><div class="hint">Claude lee la captura y rellena los campos. Luego los revisas.</div></div>
-      </div>
-      <label class="btn block" for="f-photo" id="photo-btn">${ICO_CAM} ${d.aiBusy ? 'Leyendo la foto…' : 'Subir captura o foto'}</label>
-      <input id="f-photo" type="file" accept="${esc((imgLimits.mediaTypes || ['image/*']).join(','))}" hidden ${d.aiBusy ? 'disabled' : ''}>
-      ${d.aiMsg ? `<div class="note ${d.aiErr ? 'bad' : 'ai'}">${esc(d.aiMsg)}</div>` : ''}
-    </div>` : (window.claude?.use ? '' : '<p class="banner">La lectura de fotos del reloj funciona al abrir la app en Claude.</p>');
+  const durField = (label, big) => `<div class="field"><label for="f-dur">${label}</label><input id="f-dur" class="${big ? 'big' : ''}" inputmode="numeric" value="${esc(fmtDur(d.durationSec))}" placeholder="${big ? '45:00' : '60'}" autocomplete="off"><span class="hint" id="dur-hint">${d.durationSec ? '' : 'Escribe 4530 para 45:30 o 90 para 1:30:00'}</span></div>`;
 
   let specific = '';
-  if (d.sport !== 'strength') {
+  if (isDistMetric(metric)) {
     specific += `<div class="grid2">
-      <div class="field"><label for="f-dist">Distancia (${sp.unit})</label><input id="f-dist" class="big ${aiCls('distanceM')}" inputmode="decimal" value="${esc(distVal)}" placeholder="0" autocomplete="off"></div>
-      <div class="field"><label for="f-dur">Tiempo</label><input id="f-dur" class="big ${aiCls('durationSec')}" inputmode="numeric" value="${esc(fmtDur(d.durationSec))}" placeholder="45:00" autocomplete="off"><span class="hint" id="dur-hint">${d.durationSec ? '' : 'Escribe 4530 para 45:30'}</span></div>
+      <div class="field"><label for="f-dist">Distancia (${M.unit})</label><input id="f-dist" class="big" inputmode="decimal" value="${esc(distVal)}" placeholder="0" autocomplete="off"></div>
+      ${durField('Tiempo', true)}
     </div>
-    <div class="chips">${distChips.map((v) => `<button type="button" data-dist="${v}">${nf(v, 1)}${d.sport === 'swim' ? ' m' : ' km'}</button>`).join('')}</div>
+    ${S.chips?.length ? `<div class="chips">${S.chips.map((v) => `<button type="button" data-dist="${v}">${nf(v, 1)} ${M.unit}</button>`).join('')}</div>` : ''}
     <div class="box" style="flex-direction:row;justify-content:space-between;align-items:center">
-      <span class="muted">${d.sport === 'bike' ? 'Velocidad media' : d.sport === 'swim' ? 'Ritmo /100 m' : 'Ritmo /km'}</span><span class="calc" id="calc">—</span>
+      <span class="muted">${metric === 'speed' ? 'Velocidad media (km/h)' : `Ritmo ${M.paceLbl.replace('/', '/ ')}`}</span><span class="calc" id="calc">—</span>
     </div>`;
+  } else if (metric === 'time') {
+    specific += durField('Duración', true);
   }
-  if (d.sport === 'bike') {
-    specific += `<div class="field"><label for="f-elev">Desnivel positivo (m)</label><input id="f-elev" class="${aiCls('elevationM')}" inputmode="numeric" value="${esc(d.elevationM ?? '')}" placeholder="0" autocomplete="off"></div>`;
+  if (S.elev) {
+    specific += `<div class="field"><label for="f-elev">Desnivel positivo (m)</label><input id="f-elev" inputmode="numeric" value="${esc(d.elevationM ?? '')}" placeholder="0" autocomplete="off"></div>`;
   }
-  if (d.sport === 'swim') {
-    specific += `<div class="field"><span class="lbl">Material</span><div class="row">
-      <button type="button" class="toggle" data-tog="pullbuoy" aria-pressed="${!!d.pullbuoy}">${d.pullbuoy ? ICO_CHECK : ''}Pull buoy</button>
-      <button type="button" class="toggle" data-tog="paddles" aria-pressed="${!!d.paddles}">${d.paddles ? ICO_CHECK : ''}Palas</button></div></div>`;
+  if (S.gear?.length) {
+    specific += `<div class="field"><span class="lbl">Material</span><div class="row">${S.gear.map((g) => {
+      const on = d.gear.includes(g);
+      return `<button type="button" class="toggle" data-gear="${esc(g)}" aria-pressed="${on}">${on ? ICO_CHECK : ''}${esc(g)}</button>`;
+    }).join('')}</div></div>`;
   }
-  if (d.sport === 'run' && d.type === 'Series') {
+  if (S.intervals && isPaceMetric(metric) && d.type === 'Series') {
     const count = Math.min(Number(d.reps.count) || 0, 40);
-    specific += `<div class="box ${d.ai.includes('reps') ? 'ai-mark' : ''}"><b>Series</b>
+    specific += `<div class="box"><b>Series</b>
       <div class="grid2">
         <div class="field"><label for="f-rc">Repeticiones</label><input id="f-rc" inputmode="numeric" value="${esc(d.reps.count ?? '')}" placeholder="6" autocomplete="off"></div>
-        <div class="field"><label for="f-rd">Distancia de cada una (m)</label><input id="f-rd" inputmode="numeric" value="${esc(d.reps.distM ?? '')}" placeholder="400" autocomplete="off"></div>
+        <div class="field"><label for="f-rd">Distancia de cada una (m)</label><input id="f-rd" inputmode="numeric" value="${esc(d.reps.distM ?? '')}" placeholder="${repChips(metric)[1]}" autocomplete="off"></div>
       </div>
-      <div class="chips">${[200, 400, 800, 1000, 2000].map((v) => `<button type="button" data-rd="${v}">${v} m</button>`).join('')}</div>
-      ${count ? `<span class="lbl">Ritmo de cada una (min/km)</span>
+      <div class="chips">${repChips(metric).map((v) => `<button type="button" data-rd="${v}">${v} m</button>`).join('')}</div>
+      ${count ? `<span class="lbl">Ritmo de cada una (min${M.paceLbl})</span>
       <div class="reps-list">${Array.from({ length: count }, (_, i) => `<label>#${i + 1}<input data-rp="${i}" inputmode="numeric" value="${esc(fmtPace(d.reps.paces?.[i]))}" placeholder="${esc(fmtPace(d.reps.paces?.[0]) || '4:15')}" autocomplete="off"></label>`).join('')}</div>
       <span class="hint" id="reps-hint"></span>` : '<span class="hint">Pon el número de repeticiones para anotar el ritmo de cada una.</span>'}
     </div>`;
   }
-  if (d.sport === 'strength') {
-    const lastStrength = sessionsDesc().find((s) => s.sport === 'strength' && s.id !== d.id && s.exercises?.length);
+  if (metric === 'strength') {
+    const lastStrength = sessionsDesc().find((s) => s.sport === d.sport && s.id !== d.id && s.exercises?.length);
     specific += `<div class="field"><span class="lbl">Ejercicios</span>
       ${d.exercises.map((ex, i) => exerciseCard(ex, i)).join('')}
       <button type="button" class="btn block" id="add-ex">+ Añadir ejercicio</button>
       ${!d.exercises.length && lastStrength ? `<button type="button" class="btn ghost block" id="copy-last">Repetir ejercicios del ${esc(shortDate(lastStrength.date))}${lastStrength.type ? ' (' + esc(lastStrength.type) + ')' : ''}</button>` : ''}
     </div>
-    <div class="field"><label for="f-dur">Duración (opcional)</label><input id="f-dur" inputmode="numeric" value="${esc(fmtDur(d.durationSec))}" placeholder="60" autocomplete="off"><span class="hint" id="dur-hint"></span></div>`;
+    ${durField('Duración (opcional)', false)}`;
   }
 
   app.innerHTML = `${banner}
     <form id="session-form" novalidate>
       <div class="top"><div><div class="eyebrow">${d.id ? 'Editar sesión' : plan ? 'Registrar sesión planificada' : 'Nueva sesión'}</div>
-        <h1>${esc(plan ? plan.desc || plan.type || sp.label : d.id ? sessionTitle(d) : 'Registrar')}</h1></div></div>
-      ${photo}
-      <div class="sports">${SPORT_KEYS.map((k) => `<button type="button" class="s-${k}" data-sport="${k}" aria-pressed="${d.sport === k}">${ico(k)}${SPORTS[k].label}</button>`).join('')}</div>
-      <div class="field"><span class="lbl">Tipo</span><div class="chips">${sp.types.map((t) => `<button type="button" data-type="${esc(t)}" aria-pressed="${d.type === t}" class="${d.ai.includes('type') && d.type === t ? 'ai-mark' : ''}">${esc(t)}</button>`).join('')}</div></div>
+        <h1>${esc(plan ? plan.desc || plan.type || S.label : d.id ? sessionTitle(d) : 'Registrar')}</h1></div></div>
+      <div class="sports">${sportKeys.map((k) => `<button type="button" class="s-${k}" data-sport="${k}" aria-pressed="${d.sport === k}">${ico(k)}<span>${esc(sp(k).label)}</span></button>`).join('')}</div>
+      ${S.types?.length ? `<div class="field"><span class="lbl">Tipo</span><div class="chips">${S.types.map((t) => `<button type="button" data-type="${esc(t)}" aria-pressed="${d.type === t}">${esc(t)}</button>`).join('')}</div></div>` : ''}
       ${specific}
       <div class="field"><span class="lbl">Esfuerzo percibido (RPE) <span class="muted" id="rpe-txt">${d.rpe ? '· ' + RPE_TXT[d.rpe] : ''}</span></span>
         <div class="rpe">${Array.from({ length: 10 }, (_, i) => `<button type="button" data-rpe="${i + 1}" aria-pressed="${d.rpe === i + 1}">${i + 1}</button>`).join('')}</div></div>
       <div class="field"><span class="lbl">Sensaciones</span>
         <div class="seg feels">${FEELS.map((f, i) => `<button type="button" data-feel="${i + 1}" aria-pressed="${d.feel === i + 1}">${f}</button>`).join('')}</div></div>
-      <div class="field"><label for="f-date">Fecha</label><input id="f-date" type="date" class="${aiCls('date')}" value="${esc(d.date)}"></div>
-      <div class="field"><label for="f-notes">Notas</label><textarea id="f-notes" class="${aiCls('notes')}" placeholder="Cómo fue, molestias, material, clima…">${esc(d.notes)}</textarea></div>
+      <div class="field"><label for="f-date">Fecha</label><input id="f-date" type="date" value="${esc(d.date)}"></div>
+      <div class="field"><label for="f-notes">Notas</label><textarea id="f-notes" placeholder="Cómo fue, molestias, material, clima…">${esc(d.notes)}</textarea></div>
       <div class="savebar">
         ${d.id ? '<button type="button" class="btn danger" id="f-del">Eliminar</button>' : ''}
         <button type="submit" class="btn primary">${d.id ? 'Guardar cambios' : 'Guardar sesión'}</button>
@@ -1071,21 +824,22 @@ function exerciseCard(ex, i) {
 
 function updateCalc() {
   const d = draft;
+  const M = METRICS[metricOf(d.sport)] || {};
   const out = $('#calc');
   if (out) {
-    const p = paceOf(d);
-    out.textContent = p ? p.replace(' /km', '').replace(' /100m', '') : '—';
+    const v = paceVal(d);
+    out.textContent = v == null ? '—' : M.paceM ? fmtPace(v) : nf(v, 1);
   }
   const dh = $('#dur-hint');
-  if (dh && $('#f-dur') && document.activeElement === $('#f-dur')) dh.textContent = d.durationSec ? `= ${fmtDur(d.durationSec)}` : 'Escribe 4530 para 45:30';
+  if (dh && $('#f-dur') && document.activeElement === $('#f-dur')) dh.textContent = d.durationSec ? `= ${fmtDur(d.durationSec)}` : 'Escribe 4530 para 45:30 o 90 para 1:30:00';
   const rh = $('#reps-hint');
-  if (rh) {
+  if (rh && M.paceM) {
     const ps = (d.reps.paces || []).filter(Boolean);
     if (ps.length) {
       const avg = ps.reduce((a, b) => a + b, 0) / ps.length;
       const best = Math.min(...ps);
-      const repT = d.reps.distM ? ` · cada ${d.reps.distM} m ≈ ${fmtDur((avg * d.reps.distM) / 1000)}` : '';
-      rh.textContent = `Media ${fmtPace(avg)} /km · mejor ${fmtPace(best)} /km${repT}`;
+      const repT = d.reps.distM ? ` · cada ${d.reps.distM} m ≈ ${fmtDur((avg * d.reps.distM) / M.paceM)}` : '';
+      rh.textContent = `Media ${fmtPace(avg)} ${M.paceLbl} · mejor ${fmtPace(best)} ${M.paceLbl}${repT}`;
     } else rh.textContent = '';
   }
 }
@@ -1094,11 +848,17 @@ function bindForm(app) {
   const d = draft;
   const form = $('#session-form', app);
   const rerender = () => { const y = window.scrollY; viewForm(app, ''); window.scrollTo(0, y); };
+  const unitM = () => distUnit(d.sport) === 'm';
 
   $$('[data-sport]', form).forEach((b) => (b.onclick = () => {
     if (d.sport === b.dataset.sport) return;
-    d.sport = b.dataset.sport; d.type = SPORTS[d.sport].types.includes(d.type) ? d.type : '';
-    if (d.sport === 'strength') { d.distanceM = null; }
+    const prevUnit = distUnit(d.sport), prevMetric = metricOf(d.sport);
+    d.sport = b.dataset.sport;
+    d.type = (sp(d.sport).types || []).includes(d.type) ? d.type : '';
+    d.gear = d.gear.filter((g) => (sp(d.sport).gear || []).includes(g));
+    if (!isDistMetric(metricOf(d.sport))) d.distanceM = null;
+    else if (prevUnit !== distUnit(d.sport) || !isDistMetric(prevMetric)) d.distanceM = null;
+    if (!sp(d.sport).elev) d.elevationM = null;
     rerender();
   }));
   $$('[data-type]', form).forEach((b) => (b.onclick = () => { d.type = d.type === b.dataset.type ? '' : b.dataset.type; rerender(); }));
@@ -1111,15 +871,19 @@ function bindForm(app) {
     const v = Number(b.dataset.feel); d.feel = d.feel === v ? null : v;
     $$('[data-feel]', form).forEach((x) => x.setAttribute('aria-pressed', String(Number(x.dataset.feel) === d.feel)));
   }));
-  $$('[data-tog]', form).forEach((b) => (b.onclick = () => { d[b.dataset.tog] = !d[b.dataset.tog]; rerender(); }));
+  $$('[data-gear]', form).forEach((b) => (b.onclick = () => {
+    const g = b.dataset.gear;
+    d.gear = d.gear.includes(g) ? d.gear.filter((x) => x !== g) : [...d.gear, g];
+    rerender();
+  }));
   $$('[data-dist]', form).forEach((b) => (b.onclick = () => {
-    const v = Number(b.dataset.dist); d.distanceM = d.sport === 'swim' ? v : Math.round(v * 1000);
+    const v = Number(b.dataset.dist); d.distanceM = unitM() ? v : Math.round(v * 1000);
     $('#f-dist').value = v; updateCalc();
   }));
   $$('[data-rd]', form).forEach((b) => (b.onclick = () => { d.reps.distM = Number(b.dataset.rd); rerender(); }));
 
   const on = (sel, fn, ev = 'input') => { const el = $(sel, form); if (el) el.addEventListener(ev, fn); };
-  on('#f-dist', (e) => { const v = num(e.target.value); d.distanceM = v == null ? null : d.sport === 'swim' ? Math.round(v) : Math.round(v * 1000); updateCalc(); });
+  on('#f-dist', (e) => { const v = num(e.target.value); d.distanceM = v == null ? null : unitM() ? Math.round(v) : Math.round(v * 1000); updateCalc(); });
   on('#f-dur', (e) => { d.durationSec = parseDuration(e.target.value); updateCalc(); });
   on('#f-dur', (e) => { if (d.durationSec) e.target.value = fmtDur(d.durationSec); const h = $('#dur-hint'); if (h) h.textContent = ''; }, 'blur');
   on('#f-elev', (e) => { d.elevationM = num(e.target.value); });
@@ -1133,10 +897,10 @@ function bindForm(app) {
     inp.addEventListener('blur', () => { const v = d.reps.paces[Number(inp.dataset.rp)]; if (v) inp.value = fmtPace(v); });
   });
 
-  // Fuerza
+  // Ejercicios (fuerza)
   $('#add-ex', form)?.addEventListener('click', () => { d.exercises.push({ name: '', sets: [{ reps: null, kg: null }] }); rerender(); const ins = $$('[data-exname]'); ins[ins.length - 1]?.focus(); });
   $('#copy-last', form)?.addEventListener('click', () => {
-    const last = sessionsDesc().find((s) => s.sport === 'strength' && s.id !== d.id && s.exercises?.length);
+    const last = sessionsDesc().find((s) => s.sport === d.sport && s.id !== d.id && s.exercises?.length);
     d.exercises = clone(last.exercises).map((e) => ({ name: e.name, sets: e.sets.map((st) => ({ reps: st.reps ?? null, kg: st.kg ?? null })) }));
     if (!d.type && last.type) d.type = last.type;
     rerender();
@@ -1162,14 +926,11 @@ function bindForm(app) {
   $$('[data-sr]', form).forEach((inp) => inp.addEventListener('input', () => { const [i, j] = inp.dataset.sr.split(':').map(Number); d.exercises[i].sets[j].reps = num(inp.value); }));
   $$('[data-sk]', form).forEach((inp) => inp.addEventListener('input', () => { const [i, j] = inp.dataset.sk.split(':').map(Number); const v = String(inp.value).replace(',', '.'); d.exercises[i].sets[j].kg = v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null; }));
 
-  // Foto
-  $('#f-photo', form)?.addEventListener('change', (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) readPhoto(f); });
-
   const delBtn = $('#f-del', form);
   if (delBtn) delBtn.onclick = async () => {
     if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = '¿Seguro? Toca otra vez'; return; }
     const id = d.id;
-    for (const p of data.plan.values()) if (p.sessionId === id) await put('plan', { ...p, sessionId: null }).catch(() => {});
+    for (const p of data.plan.values()) if (p.sessionId === id) await put('plan', { ...p, sessionId: null });
     await del('sessions', id);
     draft = null; toast('Sesión eliminada'); go('hoy');
   };
@@ -1177,19 +938,20 @@ function bindForm(app) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     if (!isISO(d.date)) { toast('Pon la fecha de la sesión'); return; }
+    const S = sp(d.sport), metric = S.metric || 'time';
     const s = {
       id: d.id || uid(), sport: d.sport, date: d.date, title: d.title || '', type: d.type || '',
-      durationSec: d.durationSec || null, distanceM: d.sport === 'strength' ? null : d.distanceM || null,
+      durationSec: d.durationSec || null, distanceM: isDistMetric(metric) ? d.distanceM || null : null,
       rpe: d.rpe || null, feel: d.feel || null, notes: (d.notes || '').trim(),
       createdAt: d.createdAt || Date.now(), planId: d.planId || null,
     };
-    if (d.sport === 'swim') { s.pullbuoy = !!d.pullbuoy; s.paddles = !!d.paddles; }
-    if (d.sport === 'bike') s.elevationM = d.elevationM || null;
-    if (d.sport === 'run' && d.type === 'Series') {
+    if (S.gear?.length) s.gear = d.gear.filter((g) => S.gear.includes(g));
+    if (S.elev) s.elevationM = d.elevationM || null;
+    if (S.intervals && isPaceMetric(metric) && d.type === 'Series') {
       const count = Number(d.reps.count) || 0;
       s.reps = { count, distM: d.reps.distM || null, paces: (d.reps.paces || []).slice(0, count).map((x) => x || null) };
     }
-    if (d.sport === 'strength') {
+    if (metric === 'strength') {
       s.exercises = d.exercises.filter((x) => x.name?.trim()).map((x) => ({ name: x.name.trim(), sets: x.sets.filter((st) => st.reps || st.kg).map((st) => ({ reps: st.reps || null, kg: st.kg ?? null })) }));
     }
     // Enlazar con el plan: el indicado, o el pendiente del mismo día y deporte.
@@ -1197,104 +959,12 @@ function bindForm(app) {
     if (!plan && !d.id) plan = planOn(s.date).find((p) => p.sport === s.sport && planState(p) !== 'done') || null;
     if (plan) s.planId = plan.id;
     if (!s.title && plan?.desc) s.title = plan.desc;
-    const btn = $('button[type=submit]', form); btn.disabled = true;
-    try {
-      await put('sessions', s);
-      if (plan && plan.sessionId !== s.id) await put('plan', { ...plan, sessionId: s.id });
-      draft = null;
-      toast(d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada');
-      go('hoy');
-    } catch { btn.disabled = false; }
+    await put('sessions', s);
+    if (plan && plan.sessionId !== s.id) await put('plan', { ...plan, sessionId: s.id });
+    draft = null;
+    toast(d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada');
+    go('hoy');
   };
-}
-
-// ---------- Lectura de foto con Claude ----------
-async function prepareImage(file) {
-  const ok = (imgLimits.mediaTypes || []).includes(file.type) && file.size <= imgLimits.maxInputBytes;
-  if (ok) return file;
-  // Reducir/convertir a JPEG si es muy grande o un formato no aceptado.
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-    const scale = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
-  } finally { URL.revokeObjectURL(url); }
-}
-const AI_ERRORS = {
-  not_granted: 'No has dado permiso para usar Claude en esta app. Puedes activarlo en los permisos del artefacto.',
-  rate_limited: 'Has llegado al límite de uso de Claude por ahora. Rellena los campos a mano o prueba más tarde.',
-  image_rejected: 'No se ha podido leer ese archivo. Prueba con una captura en JPG o PNG.',
-  images_unavailable: 'Aquí no se pueden enviar imágenes a Claude. Rellena los campos a mano.',
-  invalid_json: 'No he podido sacar datos claros de la foto. Prueba con una captura más nítida del resumen.',
-  refused: 'Claude no ha podido analizar esta imagen. Prueba con otra captura.',
-};
-async function readPhoto(file) {
-  const d = draft;
-  if (d.photoUrl) URL.revokeObjectURL(d.photoUrl);
-  d.photoUrl = URL.createObjectURL(file);
-  d.aiBusy = true; d.aiMsg = ''; d.aiErr = false;
-  render();
-  const t = today();
-  const prompt = `Eres un lector de capturas y fotos de relojes y apps deportivas (Garmin, Coros, Polar, Suunto, Apple Watch, Strava...). Mira la imagen y extrae el resumen del entrenamiento. Hoy es ${t}.
-Responde SOLO con un objeto JSON con estas claves (null si el dato no aparece):
-{"sport": "swim" | "run" | "bike" | "strength" | null,
- "date": "YYYY-MM-DD" | null,
- "durationSec": tiempo total o en movimiento en segundos | null,
- "distanceM": distancia en metros | null,
- "elevationM": desnivel positivo en metros | null,
- "avgPace": ritmo o velocidad media tal como aparece | null,
- "workoutType": en carrera uno de "Rodaje suave","Largo","Series","Competición"; en natación "Series","Continuo","Técnica"; en ciclismo "Rodaje","Largo","Series","Competición"; null si no se puede deducir,
- "intervals": [{"distanceM": número, "paceSecPerKm": número}] solo si se ven repeticiones de series de carrera; si no, null,
- "extra": una línea con otros datos útiles (FC media/máx, cadencia, potencia, calorías, SWOLF...) | null,
- "confidence": "alta" | "media" | "baja"}
-Ejemplo: {"sport":"run","date":"2026-11-08","durationSec":3012,"distanceM":10020,"elevationM":45,"avgPace":"5:01 /km","workoutType":null,"intervals":null,"extra":"FC media 148 ppm · cadencia 176 ppm","confidence":"alta"}
-Convierte unidades: km a m, millas a m (x1609.34), yardas a m (x0.9144). Natación en piscina: distancia total nadada. Si la fecha no trae año, usa el año más reciente que no sea posterior a hoy.`;
-  try {
-    const img = await prepareImage(file);
-    const r = await sampler.json(prompt, { images: [img] });
-    if (draft !== d) return; // el usuario salió del formulario
-    applyAI(d, r || {});
-  } catch (e) {
-    d.aiErr = true;
-    d.aiMsg = AI_ERRORS[e?.code] || 'No se pudo leer la foto. Rellena los campos a mano o inténtalo otra vez.';
-  }
-  d.aiBusy = false;
-  if (route === 'registrar' && draft === d) render();
-}
-function applyAI(d, r) {
-  const filled = [];
-  if (SPORTS[r.sport] && r.sport !== d.sport) {
-    d.sport = r.sport;
-    if (!SPORTS[d.sport].types.includes(d.type)) d.type = '';
-    filled.push('deporte');
-  }
-  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
-  if (isISO(r.date) && r.date <= addDays(today(), 1)) { d.date = r.date; d.ai.push('date'); filled.push('fecha'); }
-  if (n(r.durationSec)) { d.durationSec = Math.round(r.durationSec); d.ai.push('durationSec'); filled.push('tiempo'); }
-  if (n(r.distanceM) && d.sport !== 'strength') { d.distanceM = Math.round(r.distanceM); d.ai.push('distanceM'); filled.push('distancia'); }
-  if (n(r.elevationM) && d.sport === 'bike') { d.elevationM = Math.round(r.elevationM); d.ai.push('elevationM'); filled.push('desnivel'); }
-  if (r.workoutType && SPORTS[d.sport].types.includes(r.workoutType) && !d.type) { d.type = r.workoutType; d.ai.push('type'); filled.push('tipo'); }
-  if (Array.isArray(r.intervals) && r.intervals.length && d.sport === 'run') {
-    const iv = r.intervals.filter((x) => x && n(x.paceSecPerKm));
-    if (iv.length) {
-      d.type = 'Series';
-      const counts = {};
-      iv.forEach((x) => { const k = Math.round(x.distanceM || 0); counts[k] = (counts[k] || 0) + 1; });
-      const common = Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) || null;
-      d.reps = { count: iv.length, distM: common, paces: iv.map((x) => Math.round(x.paceSecPerKm)) };
-      d.ai.push('reps'); filled.push(`${iv.length} series`);
-    }
-  }
-  if (typeof r.extra === 'string' && r.extra.trim()) {
-    d.notes = d.notes ? `${d.notes}\n${r.extra.trim()}` : r.extra.trim();
-    d.ai.push('notes'); filled.push('notas');
-  }
-  if (!filled.length) { d.aiErr = true; d.aiMsg = 'No he encontrado datos del entrenamiento en esa imagen. Rellena los campos a mano o prueba con otra captura.'; return; }
-  const conf = r.confidence === 'baja' ? ' La foto no se ve muy clara: revisa bien cada dato.' : '';
-  d.aiMsg = `He rellenado: ${filled.join(', ')}. Revisa los campos marcados y corrige lo que haga falta antes de guardar.${conf}`;
 }
 
 // ===================== ESTADÍSTICAS =====================
@@ -1312,16 +982,15 @@ function fmtHM(sec) {
 }
 function totals(list) {
   const t = { n: list.length, sec: 0, dist: 0, kg: 0, by: {} };
-  for (const k of SPORT_KEYS) t.by[k] = { n: 0, sec: 0, dist: 0, kg: 0 };
   for (const s of list) {
-    const b = t.by[s.sport]; if (!b) continue;
+    const b = (t.by[s.sport] ||= { n: 0, sec: 0, dist: 0, kg: 0 });
     b.n++; b.sec += s.durationSec || 0; t.sec += s.durationSec || 0;
-    if (s.sport !== 'strength') { b.dist += s.distanceM || 0; t.dist += s.distanceM || 0; }
-    else { const kg = strengthTotals(s).kg; b.kg += kg; t.kg += kg; }
+    if (isDistMetric(metricOf(s.sport))) { b.dist += s.distanceM || 0; t.dist += s.distanceM || 0; }
+    if (metricOf(s.sport) === 'strength') { const kg = strengthTotals(s).kg; b.kg += kg; t.kg += kg; }
   }
   return t;
 }
-const volTxt = (k, b) => (k === 'strength' ? `${b.n} ses.` : k === 'swim' ? `${nf(b.dist)} m` : `${nf(b.dist / 1000, 1)} km`);
+const volTxt = (k, b) => (isDistMetric(metricOf(k)) ? (distUnit(k) === 'm' ? `${nf(b.dist)} m` : `${nf(b.dist / 1000, 1)} km`) : metricOf(k) === 'strength' ? `${b.n} ses.` : fmtHM(b.sec));
 function periodRange(kind, off) {
   const t = today();
   if (kind === 'week') { const from = addDays(mondayOf(t), 7 * off); return { from, to: addDays(from, 7) }; }
@@ -1401,9 +1070,13 @@ function lineChart(labels, values, fmtY, color, invert, aria) {
   const dots = pts.map(([i, v], k) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${k === pts.length - 1 ? 4.5 : 2.5}" fill="${color}"><title>${esc(labels[i])}: ${esc(fmtY(v))}</title></circle>`).join('');
   return `<svg class="chart" viewBox="0 0 ${CH.W} ${CH.H}" role="img" aria-label="${esc(aria)}">${grid}<polygon points="${area}" fill="${color}" opacity=".12"/><polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round"/>${dots}${xLabels(labels, x(0), step)}</svg>`;
 }
-const sportColor = (k) => `var(--${k})`;
 
 // ---------- Récords ----------
+function distLabel(k, m) {
+  if (m === 21097.5) return 'Media maratón';
+  if (m === 42195) return 'Maratón';
+  return distUnit(k) === 'm' || m < 1000 ? `${nf(m)} m` : `${nf(m / 1000, 1)} km`;
+}
 function bestOver(list, target) {
   let best = null;
   for (const s of list) {
@@ -1414,44 +1087,54 @@ function bestOver(list, target) {
   }
   return best;
 }
-function recordsFor(sport) {
-  const all = [...data.sessions.values()].filter((s) => s.sport === sport);
+// Récords según cómo se mide cada deporte. Solo devuelve marcas que existen.
+function recordsFor(k) {
+  const S = sp(k), metric = S.metric || 'time', M = METRICS[metric] || {};
+  const all = [...data.sessions.values()].filter((s) => s.sport === k);
   const r = [];
   const maxBy = (f) => all.reduce((b, s) => (f(s) > (b ? f(b) : 0) ? s : b), null);
-  if (sport === 'run') {
-    for (const [label, m] of [['5 km', 5000], ['10 km', 10000], ['Media maratón', 21097.5], ['Maratón', 42195]]) {
+  if (isPaceMetric(metric)) {
+    for (const m of S.records || []) {
       const b = bestOver(all, m);
-      r.push(b ? { label, value: fmtDur(b.t), s: b.s } : { label, value: '—' });
+      if (b) r.push({ label: distLabel(k, m), value: fmtDur(b.t), sub: `${fmtPace((b.t * M.paceM) / m)} ${M.paceLbl}`, s: b.s });
     }
     const reps = {};
     for (const s of all) {
       const dm = s.reps?.distM; if (!dm) continue;
       for (const p of s.reps.paces || []) if (p && (!reps[dm] || p < reps[dm].p)) reps[dm] = { p, s };
     }
-    Object.keys(reps).map(Number).sort((a, b) => a - b).slice(0, 4).forEach((dm) => r.push({ label: `Mejor serie de ${nf(dm)} m`, value: fmtDur((reps[dm].p * dm) / 1000), sub: `${fmtPace(reps[dm].p)} /km`, s: reps[dm].s }));
-    const L = maxBy((s) => s.distanceM || 0);
-    if (L?.distanceM) r.push({ label: 'Carrera más larga', value: distTxt(L), s: L });
-  } else if (sport === 'swim') {
-    for (const [label, m] of [['400 m', 400], ['1000 m', 1000], ['1500 m', 1500], ['1900 m', 1900], ['2000 m', 2000], ['3000 m', 3000], ['3800 m', 3800]]) {
-      const b = bestOver(all, m);
-      r.push(b ? { label, value: fmtDur(b.t), s: b.s } : { label, value: '—' });
-    }
-    const fast = all.filter((s) => s.distanceM >= 400 && s.durationSec).reduce((b, s) => (!b || s.durationSec / s.distanceM < b.durationSec / b.distanceM ? s : b), null);
-    if (fast) r.push({ label: 'Mejor ritmo /100 m (sesión ≥ 400 m)', value: fmtPace(fast.durationSec / (fast.distanceM / 100)), s: fast });
+    Object.keys(reps).map(Number).sort((a, b) => a - b).slice(0, 4).forEach((dm) => r.push({ label: `Mejor serie de ${nf(dm)} m`, value: fmtDur((reps[dm].p * dm) / M.paceM), sub: `${fmtPace(reps[dm].p)} ${M.paceLbl}`, s: reps[dm].s }));
+  }
+  if (isDistMetric(metric)) {
     const L = maxBy((s) => s.distanceM || 0);
     if (L?.distanceM) r.push({ label: 'Sesión más larga', value: distTxt(L), s: L });
-  } else if (sport === 'bike') {
-    const L = maxBy((s) => s.distanceM || 0); if (L?.distanceM) r.push({ label: 'Salida más larga', value: distTxt(L), s: L });
-    const E = maxBy((s) => s.elevationM || 0); if (E?.elevationM) r.push({ label: 'Más desnivel', value: `${nf(E.elevationM)} m`, s: E });
-    const fast = all.filter((s) => s.distanceM >= 40000 && s.durationSec).reduce((b, s) => (!b || s.distanceM / s.durationSec > b.distanceM / b.durationSec ? s : b), null);
-    if (fast) r.push({ label: 'Mejor velocidad (≥ 40 km)', value: paceOf(fast), s: fast });
-  } else if (sport === 'strength') {
+    if (metric === 'speed') {
+      const fast = all.filter((s) => s.distanceM && s.durationSec >= 1800).reduce((b, s) => (!b || paceVal(s) > paceVal(b) ? s : b), null);
+      if (fast) r.push({ label: 'Mejor velocidad (≥ 30 min)', value: paceOf(fast), s: fast });
+    } else if (!(S.records || []).length) {
+      const fast = all.filter((s) => s.distanceM && s.durationSec >= 1200).reduce((b, s) => (!b || paceVal(s) < paceVal(b) ? s : b), null);
+      if (fast) r.push({ label: 'Mejor ritmo (≥ 20 min)', value: fmtPace(paceVal(fast)), sub: M.paceLbl, s: fast });
+    }
+  }
+  if (S.elev) {
+    const E = maxBy((s) => s.elevationM || 0);
+    if (E?.elevationM) r.push({ label: 'Más desnivel', value: `${nf(E.elevationM)} m`, s: E });
+  }
+  if (metric === 'time') {
+    const L = maxBy((s) => s.durationSec || 0);
+    if (L?.durationSec) r.push({ label: 'Sesión más larga', value: fmtHM(L.durationSec), s: L });
+    const weeks = {};
+    for (const s of all) { const w = mondayOf(s.date); weeks[w] = (weeks[w] || 0) + 1; }
+    const top = Object.entries(weeks).sort((a, b) => b[1] - a[1])[0];
+    if (top && top[1] > 1) r.push({ label: 'Más sesiones en una semana', value: String(top[1]), sub: `semana del ${shortDate(top[0])}`, s: null, keep: true });
+  }
+  if (metric === 'strength') {
     const ex = {};
     for (const s of all) for (const e of s.exercises || []) {
-      const k = (e.name || '').trim(); if (!k) continue;
+      const name = (e.name || '').trim(); if (!name) continue;
       for (const st of e.sets || []) {
         const kg = Number(st.kg) || 0, reps = Number(st.reps) || 0; if (!kg) continue;
-        const cur = (ex[k.toLowerCase()] ||= { name: k, kg: 0, reps: 0, e1rm: 0, s: null });
+        const cur = (ex[name.toLowerCase()] ||= { name, kg: 0, reps: 0, e1rm: 0, s: null });
         if (kg > cur.kg || (kg === cur.kg && reps > cur.reps)) Object.assign(cur, { kg, reps, s });
         if (reps && reps <= 12) cur.e1rm = Math.max(cur.e1rm, kg * (1 + reps / 30));
       }
@@ -1460,106 +1143,133 @@ function recordsFor(sport) {
   }
   return r;
 }
-function recordTiles(recs) {
-  if (!recs.some((x) => x.s)) return '<p class="hint">Aún no hay marcas. Aparecerán al registrar sesiones con distancia y tiempo.</p>';
-  recs = recs.filter((x) => x.s);
-  return `<div class="recs">${recs.map((x) => `<${x.s ? `button type="button" data-edit="${esc(x.s.id)}"` : 'div'} class="rec">
-    <span class="rec-l">${esc(x.label)}</span><b class="num">${esc(x.value)}</b>
-    <span class="rec-s">${x.s ? esc([x.sub, shortDate(x.s.date)].filter(Boolean).join(' · ')) : 'Sin marca todavía'}</span></${x.s ? 'button' : 'div'}>`).join('')}</div>`;
+function recordTiles(recs, showSport) {
+  if (!recs.length) return '<p class="hint">Aún no hay marcas. Aparecerán según registres sesiones.</p>';
+  return `<div class="recs">${recs.map((x) => {
+    const tag = x.s ? `button type="button" data-edit="${esc(x.s.id)}"` : 'div';
+    const sub = [x.sub, x.s ? shortDate(x.s.date) : ''].filter(Boolean).join(' · ');
+    return `<${tag} class="rec ${x.k ? 's-' + x.k : ''}">
+      <span class="rec-l">${showSport && x.k ? `${ico(x.k)}` : ''}${esc(x.label)}</span><b class="num">${esc(x.value)}</b>
+      ${sub ? `<span class="rec-s">${esc(sub)}</span>` : ''}</${x.s ? 'button' : 'div'}>`;
+  }).join('')}</div>`;
 }
 
 // ---------- Bloque de estadísticas en Hoy ----------
+// Deportes que salen en resúmenes: los que tienen sesiones en el rango, o los activos.
+function sportsWithData(list) {
+  const used = new Set(list.map((s) => s.sport));
+  const keys = [...SPORT_KEYS.filter((k) => used.has(k)), ...[...used].filter((k) => !SPORT_KEYS.includes(k))];
+  return keys;
+}
 function homeStats(t) {
   if (!data.sessions.size) return '';
   const mon = mondayOf(t);
-  const cur = totals(sessionsIn(mon, addDays(t, 1)));
+  const curList = sessionsIn(mon, addDays(t, 1));
+  const cur = totals(curList);
   const prev = totals(sessionsIn(addDays(mon, -7), addDays(t, -6)));
   const delta = prev.sec ? Math.round(((cur.sec - prev.sec) / prev.sec) * 100) : null;
   const bk = buckets('week', { from: mon, to: addDays(mon, 7) }).slice(-8);
-  const series = SPORT_KEYS.map((k) => ({ name: SPORTS[k].label, color: sportColor(k), values: bk.map((b) => sessionsIn(b.from, b.to, k).reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
+  const recent = sessionsIn(bk[0].from, addDays(t, 1));
+  const keys = sportsWithData(recent);
+  const tileKeys = (keys.length ? keys : SPORT_KEYS).slice(0, 6);
+  const series = keys.map((k) => ({ name: sp(k).label, color: sportColor(k), values: bk.map((b) => sessionsIn(b.from, b.to, k).reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
   return `<section>
     <div class="sec-head"><h2>Tus números</h2><a class="muted" href="#progreso" data-prog="all">Ver progreso</a></div>
     <div class="sum"><b class="num">${cur.n}</b> sesiones · <b class="num">${fmtHM(cur.sec)}</b> esta semana${delta != null ? ` <span class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : ''}${delta} %</span><span class="muted"> vs. semana pasada a estas alturas</span>` : ''}</div>
-    <div class="tiles">${SPORT_KEYS.map((k) => { const b = cur.by[k]; return `<button type="button" class="stile s-${k}" data-prog="${k}">
-      <span class="stile-h">${ico(k)}${esc(SPORTS[k].label)}</span>
+    <div class="tiles">${tileKeys.map((k) => { const b = cur.by[k] || { n: 0, sec: 0, dist: 0 }; return `<button type="button" class="stile s-${k}" data-prog="${k}">
+      <span class="stile-h">${ico(k)}<span>${esc(sp(k).label)}</span></span>
       <b class="num">${b.n ? esc(volTxt(k, b)) : '—'}</b>
-      <span class="muted">${b.n ? `${b.n} ses. · ${fmtHM(b.sec)}` : 'Sin sesiones'}</span></button>`; }).join('')}</div>
-    <div class="box"><span class="eyebrow">Horas por semana</span>${barChart(bk.map((b) => b.label), series, (v) => `${nf(v, 1)} h`, 'Horas de entrenamiento por semana y deporte')}</div>
+      <span class="muted">${b.n ? `${b.n} ses. · ${fmtHM(b.sec)}` : 'Sin sesiones esta semana'}</span></button>`; }).join('')}</div>
+    ${series.length ? `<div class="box"><span class="eyebrow">Horas por semana</span>${barChart(bk.map((b) => b.label), series, (v) => `${nf(v, 1)} h`, 'Horas de entrenamiento por semana y deporte')}
+      <div class="legend">${keys.map((k) => `<span><i style="background:${sportColor(k)}"></i>${esc(sp(k).label)}</span>`).join('')}</div></div>` : ''}
   </section>`;
 }
 
 // ---------- Pestaña Progreso ----------
 function viewProgress(app, banner) {
-  const sp = progSport;
+  const ps = progSport;
   const r = periodRange(progPeriod, progOffset);
-  const list = sessionsIn(r.from, r.to, sp);
+  const list = sessionsIn(r.from, r.to, ps);
   const tot = totals(list);
   const bk = buckets(progPeriod, r);
   const labels = bk.map((b) => b.label);
   const perBucket = (k) => bk.map((b) => sessionsIn(b.from, b.to, k));
   const unitName = progPeriod === 'year' ? 'mes' : 'semana';
+  const metric = ps === 'all' ? null : metricOf(ps);
+  const M = metric ? METRICS[metric] || {} : {};
+  const chipKeys = [...new Set([...SPORT_KEYS, ...sportsWithData([...data.sessions.values()])])];
 
   let third;
-  if (sp === 'all') third = `<div class="stat"><b>${nf(tot.dist / 1000, 0)}</b><span>km (nado, bici, carrera)</span></div>`;
-  else if (sp === 'strength') third = `<div class="stat"><b>${nf(tot.kg / 1000, 1)} t</b><span>peso movido</span></div>`;
-  else third = `<div class="stat"><b>${sp === 'swim' ? nf(tot.dist) : nf(tot.dist / 1000, 1)}</b><span>${sp === 'swim' ? 'metros' : 'km'}</span></div>`;
+  if (ps === 'all') {
+    const nSports = sportsWithData(list).length;
+    third = `<div class="stat"><b>${nSports}</b><span>deporte${nSports === 1 ? '' : 's'}</span></div>`;
+  } else if (metric === 'strength') third = `<div class="stat"><b>${nf(tot.kg / 1000, 1)} t</b><span>peso movido</span></div>`;
+  else if (isDistMetric(metric)) third = `<div class="stat"><b>${M.unit === 'm' ? nf(tot.dist) : nf(tot.dist / 1000, 1)}</b><span>${M.unit === 'm' ? 'metros' : 'km'}</span></div>`;
+  else { const rp = list.filter((s) => s.rpe); third = `<div class="stat"><b>${rp.length ? nf(rp.reduce((a, s) => a + s.rpe, 0) / rp.length, 1) : '—'}</b><span>RPE medio</span></div>`; }
 
   let charts = '';
-  if (sp === 'all') {
-    const series = SPORT_KEYS.map((k) => ({ name: SPORTS[k].label, color: sportColor(k), values: perBucket(k).map((ss) => ss.reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
-    const maxV = Math.max(1, ...SPORT_KEYS.map((k) => (k === 'strength' ? 0 : tot.by[k].dist / (k === 'swim' ? 250 : k === 'run' ? 1000 : 4000))));
-    charts = `<section><h2>Volumen por deporte</h2><div class="box vol">${SPORT_KEYS.map((k) => {
+  if (ps === 'all') {
+    const keys = sportsWithData(list);
+    const keysChart = sportsWithData(sessionsIn(bk[0].from, bk[bk.length - 1].to));
+    const maxH = Math.max(1, ...keys.map((k) => tot.by[k].sec));
+    const series = keysChart.map((k) => ({ name: sp(k).label, color: sportColor(k), values: perBucket(k).map((ss) => ss.reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
+    charts = `<section><h2>Tiempo por deporte</h2>${keys.length ? `<div class="box vol">${keys.map((k) => {
         const b = tot.by[k];
-        const w = k === 'strength' ? Math.min(100, b.n * 12) : Math.round(((b.dist / (k === 'swim' ? 250 : k === 'run' ? 1000 : 4000)) / maxV) * 100);
-        return `<button type="button" class="volrow s-${k}" data-prog="${k}"><span class="vl">${ico(k)}${esc(SPORTS[k].label)}</span><span class="vb"><i style="width:${b.n ? Math.max(3, w) : 0}%"></i></span><span class="vv num"><b>${esc(volTxt(k, b))}</b><small>${b.n} ses. · ${esc(fmtHM(b.sec))}</small></span></button>`;
-      }).join('')}<p class="hint">Barras en la misma escala de esfuerzo aproximado: 1 km de carrera ≈ 250 m de nado ≈ 4 km de bici.</p></div></section>
+        return `<button type="button" class="volrow s-${k}" data-prog="${k}"><span class="vl">${ico(k)}<span>${esc(sp(k).label)}</span></span><span class="vb"><i style="width:${Math.max(3, Math.round((b.sec / maxH) * 100))}%"></i></span><span class="vv num"><b>${esc(fmtHM(b.sec))}</b><small>${b.n} ses.${isDistMetric(metricOf(k)) && b.dist ? ' · ' + esc(volTxt(k, b)) : ''}</small></span></button>`;
+      }).join('')}</div>` : '<p class="hint">Sin sesiones en este periodo.</p>'}</section>
       <section><h2>Horas por ${unitName}</h2><div class="box">${barChart(labels, series, (v) => `${nf(v, 1)} h`, 'Horas por periodo y deporte')}
-      <div class="legend">${SPORT_KEYS.map((k) => `<span><i style="background:${sportColor(k)}"></i>${esc(SPORTS[k].label)}</span>`).join('')}</div></div></section>`;
-  } else if (sp === 'strength') {
+      <div class="legend">${keysChart.map((k) => `<span><i style="background:${sportColor(k)}"></i>${esc(sp(k).label)}</span>`).join('')}</div></div></section>`;
+  } else if (metric === 'strength') {
     const names = {};
-    for (const s of data.sessions.values()) if (s.sport === 'strength') for (const e of s.exercises || []) { const k = (e.name || '').trim(); if (k) names[k] = (names[k] || 0) + 1; }
+    for (const s of data.sessions.values()) if (s.sport === ps) for (const e of s.exercises || []) { const k = (e.name || '').trim(); if (k) names[k] = (names[k] || 0) + 1; }
     const top = Object.entries(names).sort((a, b) => b[1] - a[1]).map(([n]) => n).slice(0, 10);
     if (!top.includes(progExercise)) progExercise = top[0] || '';
-    const hist = sessionsDesc().filter((s) => s.sport === 'strength').reverse()
+    const hist = sessionsDesc().filter((s) => s.sport === ps).reverse()
       .map((s) => { const e = (s.exercises || []).find((x) => (x.name || '').trim().toLowerCase() === progExercise.toLowerCase()); const kg = e ? Math.max(0, ...(e.sets || []).map((st) => Number(st.kg) || 0)) : 0; return kg ? { d: s.date, kg } : null; })
       .filter(Boolean).slice(-12);
-    const vol = perBucket('strength').map((ss) => ss.reduce((a, s) => a + strengthTotals(s).kg, 0) / 1000);
+    const vol = perBucket(ps).map((ss) => ss.reduce((a, s) => a + strengthTotals(s).kg, 0) / 1000);
     charts = `<section><h2>Peso por ejercicio</h2>
       ${top.length ? `<div class="filters chips">${top.map((n) => `<button type="button" data-ex="${esc(n)}" aria-pressed="${n === progExercise}">${esc(n)}</button>`).join('')}</div>
-      <div class="box"><span class="eyebrow">${esc(progExercise)} · peso máximo por sesión</span>${lineChart(hist.map((h) => `${fromISO(h.d).getDate()}/${fromISO(h.d).getMonth() + 1}`), hist.map((h) => h.kg), (v) => `${nf(v, 0)} kg`, sportColor('strength'), false, `Evolución del peso en ${progExercise}`)}</div>` : '<p class="hint">Registra sesiones de fuerza con ejercicios para ver su evolución.</p>'}</section>
-      <section><h2>Volumen por ${unitName}</h2><div class="box">${barChart(labels, [{ name: 'Fuerza', color: sportColor('strength'), values: vol }], (v) => `${nf(v, 1)} t`, 'Toneladas movidas por periodo')}</div></section>`;
-  } else {
-    const ss = perBucket(sp);
-    const distV = ss.map((x) => x.reduce((a, s) => a + (s.distanceM || 0), 0) / (sp === 'swim' ? 1 : 1000));
+      <div class="box"><span class="eyebrow">${esc(progExercise)} · peso máximo por sesión</span>${lineChart(hist.map((h) => `${fromISO(h.d).getDate()}/${fromISO(h.d).getMonth() + 1}`), hist.map((h) => h.kg), (v) => `${nf(v, 0)} kg`, sportColor(ps), false, `Evolución del peso en ${progExercise}`)}</div>` : '<p class="hint">Registra sesiones con ejercicios para ver su evolución.</p>'}</section>
+      <section><h2>Volumen por ${unitName}</h2><div class="box">${barChart(labels, [{ name: sp(ps).label, color: sportColor(ps), values: vol }], (v) => `${nf(v, 1)} t`, 'Toneladas movidas por periodo')}</div></section>`;
+  } else if (isDistMetric(metric)) {
+    const ss = perBucket(ps);
+    const distV = ss.map((x) => x.reduce((a, s) => a + (s.distanceM || 0), 0) / (M.unit === 'm' ? 1 : 1000));
     const paceV = ss.map((x) => {
       const ok = x.filter((s) => s.distanceM && s.durationSec);
       const d = ok.reduce((a, s) => a + s.distanceM, 0), t = ok.reduce((a, s) => a + s.durationSec, 0);
       if (!d || !t) return null;
-      return sp === 'run' ? t / (d / 1000) : sp === 'swim' ? t / (d / 100) : (d / 1000) / (t / 3600);
+      return M.paceM ? t / (d / M.paceM) : (d / 1000) / (t / 3600);
     });
-    const paceName = sp === 'run' ? 'Ritmo medio (min/km)' : sp === 'swim' ? 'Ritmo medio (min/100 m)' : 'Velocidad media (km/h)';
-    const fmtP = sp === 'bike' ? (v) => nf(v, 1) : (v) => fmtPace(v);
-    charts = `<section><h2>${sp === 'swim' ? 'Metros' : 'Kilómetros'} por ${unitName}</h2><div class="box">${barChart(labels, [{ name: SPORTS[sp].label, color: sportColor(sp), values: distV }], (v) => (sp === 'swim' ? nf(v) : nf(v, 0)), `Distancia por periodo en ${SPORTS[sp].label}`)}</div></section>
-      <section><h2>${paceName}</h2><div class="box">${lineChart(labels, paceV, fmtP, sportColor(sp), sp !== 'bike', paceName)}
-      <p class="hint">${sp === 'bike' ? 'Más arriba es más rápido.' : 'Más arriba es más rápido: el eje va al revés porque menos minutos es mejor.'} Media ponderada por distancia de todas las sesiones con distancia y tiempo.</p></div></section>`;
+    const paceName = M.paceM ? `Ritmo medio (min${M.paceLbl})` : 'Velocidad media (km/h)';
+    const fmtP = M.paceM ? (v) => fmtPace(v) : (v) => nf(v, 1);
+    charts = `<section><h2>${M.unit === 'm' ? 'Metros' : 'Kilómetros'} por ${unitName}</h2><div class="box">${barChart(labels, [{ name: sp(ps).label, color: sportColor(ps), values: distV }], (v) => nf(v, 0), `Distancia por periodo en ${sp(ps).label}`)}</div></section>
+      <section><h2>${paceName}</h2><div class="box">${lineChart(labels, paceV, fmtP, sportColor(ps), !!M.paceM, paceName)}
+      <p class="hint">${M.paceM ? 'Más arriba es más rápido: el eje va al revés porque menos minutos es mejor.' : 'Más arriba es más rápido.'} Media ponderada por distancia.</p></div></section>`;
+  } else {
+    const ss = perBucket(ps);
+    const hours = ss.map((x) => x.reduce((a, s) => a + (s.durationSec || 0), 0) / 3600);
+    const rpe = ss.map((x) => { const v = x.filter((s) => s.rpe); return v.length ? v.reduce((a, s) => a + s.rpe, 0) / v.length : null; });
+    charts = `<section><h2>Horas por ${unitName}</h2><div class="box">${barChart(labels, [{ name: sp(ps).label, color: sportColor(ps), values: hours }], (v) => `${nf(v, 1)} h`, `Horas por periodo en ${sp(ps).label}`)}</div></section>
+      <section><h2>Intensidad media (RPE)</h2><div class="box">${lineChart(labels, rpe, (v) => nf(v, 1), sportColor(ps), false, 'RPE medio por periodo')}</div></section>`;
   }
 
-  let recs = '';
-  if (sp === 'all') {
-    const has = (k, n) => recordsFor(k).filter((x) => x.s).slice(0, n);
-    const pick = [...has('run', 2), ...has('swim', 1), ...has('bike', 1), ...has('strength', 2)];
-    recs = recordTiles(pick);
-  } else recs = recordTiles(recordsFor(sp));
+  let recs;
+  if (ps === 'all') {
+    const pick = [];
+    for (const k of sportsWithData([...data.sessions.values()])) pick.push(...recordsFor(k).filter((x) => x.s).slice(0, 2).map((x) => ({ ...x, k })));
+    recs = recordTiles(pick.slice(0, 8), true);
+  } else recs = recordTiles(recordsFor(ps));
 
   // Historial
-  const hist = sessionsDesc().filter((s) => sp === 'all' || s.sport === sp);
+  const hist = sessionsDesc().filter((s) => ps === 'all' || s.sport === ps);
   const shown = hist.slice(0, histLimit);
   const groups = new Map();
   for (const s of shown) { const k = mondayOf(s.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
 
   app.innerHTML = `${banner}<h1>Progreso</h1>
-    <div class="filters chips"><button type="button" data-ps="all" aria-pressed="${sp === 'all'}">Todo</button>${SPORT_KEYS.map((k) => `<button type="button" data-ps="${k}" aria-pressed="${sp === k}">${SPORTS[k].label}</button>`).join('')}</div>
-    ${store === 'loading' ? '<div class="skel"></div>' : !data.sessions.size ? '<div class="empty"><h2>Aún no hay datos</h2><p class="muted" style="margin:0">Cuando registres sesiones verás aquí tu volumen, la evolución de tus ritmos y pesos, y tus récords.</p><a class="btn primary" href="#registrar" data-new>Registrar sesión</a></div>' : `
+    <div class="filters chips"><button type="button" data-ps="all" aria-pressed="${ps === 'all'}">Todo</button>${chipKeys.map((k) => `<button type="button" data-ps="${k}" aria-pressed="${ps === k}">${esc(sp(k).label)}</button>`).join('')}</div>
+    ${!data.sessions.size ? '<div class="empty"><h2>Aún no hay datos</h2><p class="muted" style="margin:0">Cuando registres sesiones verás aquí tu volumen, la evolución de tus ritmos y pesos, y tus récords.</p><a class="btn primary" href="#registrar" data-new>Registrar sesión</a></div>' : `
     <div class="seg pseg">${[['week', 'Semana'], ['month', 'Mes'], ['year', 'Año']].map(([k, l]) => `<button type="button" data-pp="${k}" aria-pressed="${progPeriod === k}">${l}</button>`).join('')}</div>
     <div class="weeknav">
       <button class="btn" data-po="-1" aria-label="Periodo anterior">${ICO_L}</button>
@@ -1610,15 +1320,16 @@ function planCSV() {
   return toCSV(CSV_P, [...data.plan.values()].sort((a, b) => a.date.localeCompare(b.date)).map((p) => [p.id, p.date, p.sport, p.type, p.desc, p.sessionId]));
 }
 function fullJSON() {
-  return JSON.stringify({ app: 'cuaderno-triatlon', version: 1, exportedAt: new Date().toISOString(),
+  return JSON.stringify({ app: 'cuaderno-deporte', version: 2, exportedAt: new Date().toISOString(), settings,
     sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()] }, null, 2);
 }
+const validKey = (k) => typeof k === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(k);
 function cleanSession(s) {
-  if (!s || !isISO(s.date) || !SPORTS[s.sport]) return null;
+  if (!s || !isISO(s.date) || !validKey(s.sport)) return null;
   return { ...s, id: typeof s.id === 'string' && /^[\w.~:@+-]+$/.test(s.id) ? s.id : uid() };
 }
 function cleanPlan(p) {
-  if (!p || !isISO(p.date) || !SPORTS[p.sport]) return null;
+  if (!p || !isISO(p.date) || !validKey(p.sport)) return null;
   return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
 }
 async function importText(name, text) {
@@ -1628,6 +1339,8 @@ async function importText(name, text) {
     sessions = (j.sessions || []).map(cleanSession).filter(Boolean);
     plan = (j.plan || []).map(cleanPlan).filter(Boolean);
     days = (j.days || []).filter((x) => isISO(x?.id) && ['work', 'off'].includes(x.status)).map((x) => ({ id: x.id, status: x.status }));
+    for (const def of j.settings?.sports || []) if (validKey(def?.key) && !settings.sports.some((x) => x.key === def.key)) settings.sports.push(cleanSportDef(def));
+    if (j.settings?.goalDays) settings.goalDays = Math.min(7, Math.max(1, Number(j.settings.goalDays) || 6));
   } else {
     const rows = parseCSV(text);
     const head = rows.shift() || [];
@@ -1646,34 +1359,81 @@ async function importText(name, text) {
   }
   const total = sessions.length + plan.length + days.length;
   if (!total) throw new Error('vacío');
+  for (const x of [...sessions, ...plan]) ensureSport(x.sport);
+  saveSettings();
   toast(`Importando ${total} registros…`);
   const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x))]);
   toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones y ${plan.length} sesiones de plan`);
   render();
 }
 
-function viewData(app, banner) {
-  const nS = data.sessions.size, nP = data.plan.size;
-  app.innerHTML = `${banner}<h1>Tus datos</h1>
-    <div class="note ${store === 'cloud' ? 'okay' : 'warn'}">${store === 'cloud'
-      ? 'Se guardan en tu cuenta de Claude, ligados a esta app. No se pierden al cerrarla y los ves desde cualquier dispositivo con tu cuenta.'
-      : store === 'local' ? (STANDALONE ? 'Se guardan en este dispositivo y no se pierden al cerrar la app. Si borras los datos del navegador o cambias de móvil, se pierden: exporta una copia de vez en cuando.' : 'Ahora mismo se guardan solo en este navegador. Abre la app desde Claude para guardarlos en tu cuenta.') : 'Cargando…'}</div>
-    <div class="stats3">
-      <div class="stat"><b>${nS}</b><span>sesiones</span></div>
-      <div class="stat"><b>${nP}</b><span>en el plan</span></div>
-      <div class="stat"><b>${data.days.size}</b><span>días marcados</span></div>
-    </div>
+// ===================== AJUSTES =====================
+function cleanSportDef(d) {
+  const metric = METRICS[d.metric] ? d.metric : 'time';
+  const list = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter(Boolean).slice(0, 12);
+  return {
+    key: d.key, label: String(d.label || 'Deporte').slice(0, 40), icon: ICONS[d.icon] ? d.icon : 'bolt',
+    color: COLORS.includes(d.color) ? d.color : 'slate', metric, types: list(d.types), gear: list(d.gear),
+    elev: !!d.elev, intervals: !!d.intervals && isPaceMetric(metric),
+    chips: Array.isArray(d.chips) ? d.chips.filter((x) => Number(x) > 0).slice(0, 8) : [],
+    records: Array.isArray(d.records) ? d.records.filter((x) => Number(x) > 0) : [],
+    ph: String(d.ph || ''), hidden: !!d.hidden,
+  };
+}
+function daysSince(isoStr) {
+  if (!isoStr) return null;
+  return Math.floor((fromISO(today()) - fromISO(isoStr.slice(0, 10))) / 86400000);
+}
+function backupNote() {
+  const n = data.sessions.size;
+  const ds = daysSince(settings.lastExport);
+  if (n < 5 || (ds != null && ds < 30)) return '';
+  return `<div class="note warn">${ds == null ? 'Aún no has hecho ninguna copia de seguridad.' : `Tu última copia de seguridad es de hace ${ds} días.`} Tus datos solo están en este móvil. <a href="#ajustes">Hacer copia</a></div>`;
+}
+
+function viewSettings(app, banner) {
+  const ds = daysSince(settings.lastExport);
+  const used = new Set([...data.sessions.values()].map((s) => s.sport));
+  app.innerHTML = `${banner}<h1>Ajustes</h1>
+    <section><div class="sec-head"><h2>Mis deportes</h2></div>
+      <p class="hint">Los deportes activos salen al registrar y planificar. Ocultar uno no borra sus sesiones.</p>
+      <div class="list">${settings.sports.map((d, i) => `<div class="item s-${d.key}">
+        <span class="tile">${ico(d.key)}</span>
+        <span class="item-main"><span class="item-title">${esc(d.label)}${d.hidden ? ' <span class="badge pending">Oculto</span>' : ''}</span>
+          <span class="item-sub">${esc(METRICS[d.metric]?.label || '')}${used.has(d.key) ? '' : ' · sin sesiones'}</span></span>
+        <button class="iconbtn" data-up="${i}" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn small" data-sedit="${esc(d.key)}">Editar</button>
+      </div>`).join('')}</div>
+      <button class="btn primary block" id="add-sport">+ Añadir deporte</button>
+    </section>
+    <section><h2>Objetivo semanal</h2>
+      <p class="hint">Días de entreno por semana. La app te avisa si te pasas o te quedas corto.</p>
+      <div class="seg goal">${[3, 4, 5, 6, 7].map((n) => `<button type="button" data-goal="${n}" aria-pressed="${settings.goalDays === n}">${n}</button>`).join('')}</div>
+    </section>
     <section class="dz"><h2>Copia de seguridad</h2>
+      <div class="note ${ds != null && ds < 30 ? 'okay' : 'warn'}">Tus datos se guardan solo en este dispositivo. ${ds == null ? 'Aún no has hecho ninguna copia.' : ds === 0 ? 'Última copia: hoy.' : `Última copia: hace ${ds} día${ds === 1 ? '' : 's'}.`} Si borras los datos del navegador o cambias de móvil, solo recuperarás lo que tengas en una copia.</div>
+      <div class="stats3">
+        <div class="stat"><b>${data.sessions.size}</b><span>sesiones</span></div>
+        <div class="stat"><b>${data.plan.size}</b><span>en el plan</span></div>
+        <div class="stat"><b>${settings.sports.filter((d) => !d.hidden).length}</b><span>deportes</span></div>
+      </div>
       <button class="btn primary block" data-exp="json">Exportar todo (JSON)</button>
       <div class="row"><button class="btn" data-exp="scsv">Sesiones (CSV)</button><button class="btn" data-exp="pcsv">Plan (CSV)</button></div>
-      <p class="hint">El JSON incluye sesiones, plan y días de trabajo. El CSV se abre en Excel o Google Sheets.</p>
-      <div id="dump"></div>
-    </section>
-    <section class="dz"><h2>Importar</h2>
-      <label class="btn block" for="imp">Elegir archivo JSON o CSV</label>
+      <p class="hint">Guarda el JSON en iCloud, Google Drive o envíatelo por correo. El CSV se abre en Excel o Google Sheets.</p>
+      <label class="btn block" for="imp">Importar copia (JSON o CSV)</label>
       <input id="imp" type="file" accept=".json,.csv,application/json,text/csv" hidden>
-      <p class="hint">Se añade a lo que ya tienes. Si un registro ya existe (mismo id), se sustituye.</p>
+      <p class="hint">Se añade a lo que ya tienes. Si un registro ya existe, se sustituye.</p>
+    </section>
+    <section><h2>Instalar en el móvil</h2>
+      <p class="muted" style="margin:0">iPhone: abre la app en Safari, pulsa Compartir y luego «Añadir a pantalla de inicio». Android: menú ⋮ de Chrome y «Instalar app».</p>
     </section>`;
+  $$('[data-sedit]', app).forEach((b) => (b.onclick = () => sportEditor(sp(b.dataset.sedit))));
+  $$('[data-up]', app).forEach((b) => (b.onclick = () => {
+    const i = Number(b.dataset.up); const arr = settings.sports;
+    [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; saveSettings(); render();
+  }));
+  $('#add-sport', app).onclick = addSportSheet;
+  $$('[data-goal]', app).forEach((b) => (b.onclick = () => { settings.goalDays = Number(b.dataset.goal); saveSettings(); render(); }));
   $$('[data-exp]', app).forEach((b) => (b.onclick = () => exportFile(b.dataset.exp)));
   $('#imp', app).addEventListener('change', async (e) => {
     const f = e.target.files?.[0]; e.target.value = '';
@@ -1682,26 +1442,102 @@ function viewData(app, banner) {
     catch { toast('No se pudo importar: el archivo no es una copia de esta app.'); }
   });
 }
-async function exportFile(kind) {
+
+function addSportSheet() {
+  const have = new Set(settings.sports.map((d) => d.key));
+  const avail = PRESETS.filter((p) => !have.has(p.key));
+  openSheet(`<h2>Añadir deporte</h2>
+    <p class="muted" style="margin:0">Elige uno de la lista o crea el tuyo.</p>
+    <div class="presets">${avail.map((p) => `<button type="button" class="preset s-${p.key}" data-preset="${p.key}">${icoName(p.icon)}<span>${esc(p.label)}</span></button>`).join('')}</div>
+    <button class="btn primary block" id="custom-sport">Crear deporte personalizado</button>`, (el) => {
+    // Los colores de los predefinidos aún no están en la hoja de estilos dinámica.
+    $$('[data-preset]', el).forEach((b) => {
+      b.style.setProperty('--c', `var(--col-${PRESET_MAP[b.dataset.preset].color})`);
+      b.onclick = () => { settings.sports.push({ ...PRESET_MAP[b.dataset.preset] }); saveSettings(); closeSheet(); toast(`${PRESET_MAP[b.dataset.preset].label} añadido`); render(); };
+    });
+    $('#custom-sport', el).onclick = () => sportEditor(null);
+  });
+}
+
+function sportEditor(def) {
+  const isNew = !def;
+  const f = def ? clone(def) : { key: 'c' + Math.random().toString(36).slice(2, 8), label: '', icon: 'bolt', color: 'rose', metric: 'time', types: [], gear: [], elev: false, intervals: false, chips: [], records: [], ph: '' };
+  const hasSessions = !isNew && [...data.sessions.values()].some((s) => s.sport === f.key);
+  const draw = (el) => {
+    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nuevo deporte' : 'Editar deporte'}</h2>
+      <div class="field"><label for="se-name">Nombre</label><input id="se-name" type="text" maxlength="40" value="${esc(f.label)}" placeholder="p. ej. Surf" autocomplete="off"></div>
+      <div class="field"><span class="lbl">Cómo lo mides</span>
+        <div class="metrics">${Object.entries(METRICS).map(([k, m]) => `<button type="button" data-metric="${k}" aria-pressed="${f.metric === k}" ${hasSessions && f.metric !== k ? 'disabled' : ''}><b>${esc(m.label)}</b><small>${esc(m.ex)}</small></button>`).join('')}</div>
+        ${hasSessions ? '<span class="hint">No se puede cambiar porque ya tiene sesiones registradas.</span>' : ''}</div>
+      ${isDistMetric(f.metric) ? `<button type="button" class="toggle" id="se-elev" aria-pressed="${!!f.elev}">${f.elev ? ICO_CHECK : ''}Apuntar desnivel</button>` : ''}
+      ${isPaceMetric(f.metric) ? `<button type="button" class="toggle" id="se-int" aria-pressed="${!!f.intervals}">${f.intervals ? ICO_CHECK : ''}Apuntar series con el ritmo de cada una</button>` : ''}
+      <div class="field"><span class="lbl">Icono</span><div class="icons">${ICON_NAMES.map((n) => `<button type="button" data-icon="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${icoName(n)}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">Color</span><div class="colors">${COLORS.map((c) => `<button type="button" data-color="${c}" aria-pressed="${f.color === c}" aria-label="${esc(COLOR_NAMES[c])}" style="--c:var(--col-${c})"></button>`).join('')}</div></div>
+      <div class="field"><label for="se-types">Tipos de sesión</label><input id="se-types" type="text" value="${esc((f.types || []).join(', '))}" placeholder="Separados por comas: Partido, Entreno" autocomplete="off"></div>
+      <div class="field"><label for="se-gear">Material (opcional)</label><input id="se-gear" type="text" value="${esc((f.gear || []).join(', '))}" placeholder="Separado por comas: Neopreno, Aletas" autocomplete="off"></div>
+      <button class="btn primary block" id="se-save">${isNew ? 'Añadir deporte' : 'Guardar'}</button>
+      ${isNew ? '' : `<button class="btn block" id="se-hide">${f.hidden ? 'Mostrar de nuevo' : 'Ocultar este deporte'}</button>`}
+      ${!isNew && !hasSessions ? '<button class="btn danger block" id="se-del">Quitar de mis deportes</button>' : ''}`;
+    const keep = () => { f.label = $('#se-name', el).value; f.types = $('#se-types', el).value; f.gear = $('#se-gear', el).value; };
+    $$('[data-metric]', el).forEach((b) => (b.onclick = () => { keep(); f.metric = b.dataset.metric; if (!isDistMetric(f.metric)) f.elev = false; if (!isPaceMetric(f.metric)) f.intervals = false; draw(el); }));
+    $$('[data-icon]', el).forEach((b) => (b.onclick = () => { keep(); f.icon = b.dataset.icon; draw(el); }));
+    $$('[data-color]', el).forEach((b) => (b.onclick = () => { keep(); f.color = b.dataset.color; draw(el); }));
+    $('#se-elev', el)?.addEventListener('click', () => { keep(); f.elev = !f.elev; draw(el); });
+    $('#se-int', el)?.addEventListener('click', () => { keep(); f.intervals = !f.intervals; draw(el); });
+    $('#se-save', el).onclick = () => {
+      keep();
+      if (!f.label.trim()) { toast('Ponle un nombre al deporte'); return; }
+      const clean = cleanSportDef(f);
+      const i = settings.sports.findIndex((x) => x.key === f.key);
+      if (i >= 0) settings.sports[i] = clean; else settings.sports.push(clean);
+      saveSettings(); closeSheet(); toast(isNew ? `${clean.label} añadido` : 'Deporte guardado'); render();
+    };
+    $('#se-hide', el)?.addEventListener('click', () => {
+      const i = settings.sports.findIndex((x) => x.key === f.key);
+      settings.sports[i].hidden = !settings.sports[i].hidden;
+      if (settings.sports.every((x) => x.hidden)) { settings.sports[i].hidden = false; toast('Tiene que quedar al menos un deporte activo'); return; }
+      saveSettings(); closeSheet(); render();
+    });
+    const delBtn = $('#se-del', el);
+    if (delBtn) delBtn.onclick = () => {
+      if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para quitarlo'; return; }
+      if (settings.sports.filter((x) => !x.hidden && x.key !== f.key).length === 0) { toast('Tiene que quedar al menos un deporte activo'); return; }
+      settings.sports = settings.sports.filter((x) => x.key !== f.key);
+      for (const p of [...data.plan.values()]) if (p.sport === f.key && planState(p) !== 'done') del('plan', p.id);
+      saveSettings(); closeSheet(); toast('Deporte quitado'); render();
+    };
+  };
+  openSheet('', draw);
+}
+
+function exportFile(kind) {
   const stamp = today();
-  const f = kind === 'json' ? { filename: `entrenos-${stamp}.json`, data: fullJSON() }
-    : kind === 'scsv' ? { filename: `sesiones-${stamp}.csv`, data: sessionsCSV() }
-    : { filename: `plan-${stamp}.csv`, data: planCSV() };
-  const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
-  if (dl) {
-    try { await dl.save(f); toast('Archivo guardado'); return; }
-    catch (e) { if (e?.code === 'declined') return; }
+  const f = kind === 'json' ? { name: `entrenos-${stamp}.json`, body: fullJSON(), type: 'application/json' }
+    : kind === 'scsv' ? { name: `sesiones-${stamp}.csv`, body: sessionsCSV(), type: 'text/csv' }
+    : { name: `plan-${stamp}.csv`, body: planCSV(), type: 'text/csv' };
+  const blob = new Blob([f.body], { type: f.type });
+  const file = typeof File === 'function' ? new File([blob], f.name, { type: f.type }) : null;
+  // En el móvil, el menú Compartir permite guardar en Archivos, Drive o enviarlo.
+  if (file && navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file], title: f.name }).then(markExported).catch(() => {});
+    return;
   }
-  // Alternativa: mostrar el contenido para copiarlo.
-  const box = $('#dump');
-  box.innerHTML = `<p class="hint">No se puede descargar aquí. Copia el contenido y guárdalo como ${esc(f.filename)}.</p><textarea class="dump" readonly id="dump-ta"></textarea><button class="btn" id="dump-copy">Copiar</button>`;
-  $('#dump-ta').value = f.data;
-  $('#dump-copy').onclick = async () => { try { await navigator.clipboard.writeText(f.data); toast('Copiado'); } catch { $('#dump-ta').select(); } };
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: f.name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  markExported(kind);
+}
+function markExported(kind) {
+  if (kind && kind !== 'json') { toast('Archivo descargado'); return; }
+  settings.lastExport = new Date().toISOString();
+  saveSettings();
+  toast('Copia guardada');
+  render();
 }
 
 // ===================== Arranque =====================
+loadAll();
 route = routeFromHash();
 render();
-initData();
 })();
-</script>
