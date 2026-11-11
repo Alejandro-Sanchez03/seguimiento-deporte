@@ -189,18 +189,53 @@ function summary(s) {
 const sessionTitle = (s) => s.title || [sp(s.sport).label, s.type].filter(Boolean).join(' · ');
 
 // ===================== Datos (en el dispositivo) =====================
-// Colecciones: sessions (entrenos hechos), plan (sesiones planificadas), days (trabajo/libre por fecha).
-const COLLS = ['sessions', 'plan', 'days'];
-const data = { sessions: new Map(), plan: new Map(), days: new Map() };
+// Todo se guarda en localStorage con la clave LS_KEY, en un único objeto:
+//   { schema, sessions: [...], plan: [...], days: [...], races: [...] }
+// Las colecciones nuevas se añaden sin tocar las existentes. Cada cambio de estructura sube
+// SCHEMA y tiene su paso en migrate(); antes de migrar se guarda una copia del estado anterior.
+const COLLS = ['sessions', 'plan', 'days', 'races'];
+const data = Object.fromEntries(COLLS.map((c) => [c, new Map()]));
+const SCHEMA = 2;
 let store = 'loading';
+let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
+let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
+let unreadableNote = false; // se apartaron datos ilegibles en otra clave
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
+function migrate(raw) {
+  const from = Number(raw.schema) || 1;
+  if (from >= SCHEMA) return { raw, changed: false };
+  const hasData = COLLS.some((c) => Array.isArray(raw[c]) && raw[c].length);
+  if (hasData) {
+    try { localStorage.setItem(`${LS_KEY}:copia-antes-de-v${SCHEMA}`, JSON.stringify(raw)); } catch { /* sin espacio: se migra igualmente, la migración no borra nada */ }
+  }
+  // v1 → v2: se añade la lista de carreras. Sesiones, plan y días no cambian.
+  if (from < 2) raw.races = Array.isArray(raw.races) ? raw.races : [];
+  raw.schema = SCHEMA;
+  return { raw, changed: true };
+}
+
 function loadAll() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-    for (const c of COLLS) data[c] = new Map((raw[c] || []).map((o) => [o.id, o]));
-  } catch { /* sin almacenamiento disponible */ }
+  let raw = {};
+  let text = null;
+  try { text = localStorage.getItem(LS_KEY); } catch { storageBroken = true; }
+  if (text) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) raw = parsed;
+      else throw new Error('formato');
+    } catch {
+      // Datos ilegibles: se apartan en otra clave. Si no se pueden apartar, no se escribe encima.
+      try { localStorage.setItem(`${LS_KEY}:ilegible-${Date.now()}`, text); unreadableNote = true; }
+      catch { storageBroken = true; }
+    }
+  }
+  const m = migrate(raw);
+  raw = m.raw;
+  extraKeys = {};
+  for (const [k, v] of Object.entries(raw)) if (!COLLS.includes(k) && k !== 'schema') extraKeys[k] = v;
+  for (const c of COLLS) data[c] = new Map((Array.isArray(raw[c]) ? raw[c] : []).filter((o) => o && o.id).map((o) => [o.id, o]));
   try {
     const st = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null');
     if (st && Array.isArray(st.sports) && st.sports.length) settings = { ...settings, ...st };
@@ -209,10 +244,13 @@ function loadAll() {
   for (const s of data.sessions.values()) ensureSport(s.sport);
   applySports();
   store = 'local';
+  if (m.changed && text && !storageBroken && !unreadableNote) saveLocal();
   try { navigator.storage?.persist?.(); } catch { /* opcional */ }
 }
 function saveLocal() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(COLLS.map((c) => [c, [...data[c].values()]])))); }
+  if (storageBroken) { toast('No se guardó: tus datos anteriores no se pudieron leer. Exporta o recarga la app.'); return; }
+  const obj = { ...extraKeys, schema: SCHEMA, ...Object.fromEntries(COLLS.map((c) => [c, [...data[c].values()]])) };
+  try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); }
   catch { toast('No se pudo guardar: el almacenamiento del navegador está lleno o bloqueado.'); }
 }
 function saveSettings() {
@@ -311,7 +349,7 @@ function routeFromHash() {
   const r = location.hash.slice(1) || 'hoy';
   if (r === 'historial') return 'progreso';
   if (r === 'datos') return 'ajustes';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes'].includes(r) ? r : 'hoy';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -343,8 +381,8 @@ function render(fromData = false) {
   if (fromData && route === 'registrar' && $('#session-form')) { refreshDatalist(); return; }
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
-  const banner = '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings };
+  const banner = unreadableNote ? '<div class="note bad">Había datos guardados que no se pudieron leer. Se han apartado sin borrarlos. Si echas algo en falta, importa tu última copia de seguridad.</div>' : '';
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -414,6 +452,7 @@ function viewToday(app, banner) {
     </div>
     ${cards}${emptyCard}${extraList}
     ${tomorrow.length ? `<section><div class="eyebrow">Mañana</div><div class="list">${tomorrow.map(planRow).join('')}</div></section>` : ''}
+    ${raceCountdown()}
     ${missedSec}
     <section>
       <div class="sec-head"><h2>Esta semana</h2><a class="muted" href="#semana">Ver semana</a></div>
@@ -492,6 +531,7 @@ function viewWeek(app, banner) {
           ${ps === 'done' ? '<span class="badge done">Hecha</span>' : ps === 'missed' ? '<span class="badge missed">No hecha</span>' : ''}
         </button>`;
       }).join('')}
+      ${racesOn(d).map((r) => `<a class="pill race" href="#carreras">${ICO_FLAG}<span class="pill-main"><span class="pill-title">${esc(r.name)}</span><span class="pill-sub">Carrera${raceMeta(r) ? ' · ' + esc(raceMeta(r)) : ''}</span></span></a>`).join('')}
       ${extra.map((s) => `<button class="pill extra s-${s.sport}" data-edit="${esc(s.id)}">${ico(s.sport)}<span class="pill-main"><span class="pill-title">${esc(sessionTitle(s))}</span><span class="pill-sub">Sin planificar · ${esc(summary(s))}</span></span><span class="badge done">Hecha</span></button>`).join('')}
       ${moving ? '' : `<button class="addbtn" data-add="${d}">+ Añadir sesión</button>`}
     </div>`;
@@ -1321,7 +1361,7 @@ function planCSV() {
 }
 function fullJSON() {
   return JSON.stringify({ app: 'cuaderno-deporte', version: 2, exportedAt: new Date().toISOString(), settings,
-    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()] }, null, 2);
+    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()], races: [...data.races.values()] }, null, 2);
 }
 const validKey = (k) => typeof k === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(k);
 function cleanSession(s) {
@@ -1333,11 +1373,12 @@ function cleanPlan(p) {
   return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
 }
 async function importText(name, text) {
-  let sessions = [], plan = [], days = [];
+  let sessions = [], plan = [], days = [], races = [];
   if (/\.json$/i.test(name) || /^\s*[{[]/.test(text)) {
     const j = JSON.parse(text);
     sessions = (j.sessions || []).map(cleanSession).filter(Boolean);
     plan = (j.plan || []).map(cleanPlan).filter(Boolean);
+    races = (Array.isArray(j.races) ? j.races : []).map(cleanRace).filter(Boolean);
     days = (j.days || []).filter((x) => isISO(x?.id) && ['work', 'off'].includes(x.status)).map((x) => ({ id: x.id, status: x.status }));
     for (const def of j.settings?.sports || []) if (validKey(def?.key) && !settings.sports.some((x) => x.key === def.key)) settings.sports.push(cleanSportDef(def));
     if (j.settings?.goalDays) settings.goalDays = Math.min(7, Math.max(1, Number(j.settings.goalDays) || 6));
@@ -1357,14 +1398,133 @@ async function importText(name, text) {
       plan = rows.map((r) => cleanPlan({ id: r[ix('id')], date: r[ix('fecha')], sport: r[ix('deporte')], type: r[ix('tipo')], desc: r[ix('descripcion')], sessionId: r[ix('sesion_id')] || null })).filter(Boolean);
     } else throw new Error('formato');
   }
-  const total = sessions.length + plan.length + days.length;
+  const total = sessions.length + plan.length + days.length + races.length;
   if (!total) throw new Error('vacío');
   for (const x of [...sessions, ...plan]) ensureSport(x.sport);
   saveSettings();
   toast(`Importando ${total} registros…`);
-  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x))]);
-  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones y ${plan.length} sesiones de plan`);
+  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x)), ...races.map((r) => () => put('races', r))]);
+  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones, ${plan.length} del plan y ${races.length} carreras`);
   render();
+}
+
+// ===================== CARRERAS =====================
+const ICO_FLAG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>';
+const daysUntil = (d) => Math.round((fromISO(d) - fromISO(today())) / 86400000);
+const upcomingRaces = () => [...data.races.values()].filter((r) => r.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
+const pastRaces = () => [...data.races.values()].filter((r) => r.date < today()).sort((a, b) => b.date.localeCompare(a.date));
+const racesOn = (d) => [...data.races.values()].filter((r) => r.date === d);
+function countdownTxt(n) {
+  if (n === 0) return '¡Es hoy!';
+  if (n === 1) return 'Mañana';
+  return `Faltan ${n} días`;
+}
+function raceDist(r) {
+  if (!r.distanceM) return '';
+  return r.sport && distUnit(r.sport) === 'm' ? `${nf(r.distanceM)} m` : `${nf(r.distanceM / 1000, 2)} km`;
+}
+// Ritmo o velocidad necesarios para la marca objetivo.
+function racePace(r, sec = r.targetSec) {
+  if (!r.distanceM || !sec || !r.sport) return ''; // en carreras de varios deportes no tiene sentido
+  const metric = metricOf(r.sport);
+  const M = METRICS[metric] || {};
+  if (M.paceM) return `${fmtPace(sec / (r.distanceM / M.paceM))} ${M.paceLbl}`;
+  if (metric === 'speed') return `${nf((r.distanceM / 1000) / (sec / 3600), 1)} km/h`;
+  return '';
+}
+function raceMeta(r) {
+  return [raceDist(r), r.targetSec ? `objetivo ${fmtDur(r.targetSec)}` : '', racePace(r) ? `a ${racePace(r)}` : ''].filter(Boolean).join(' · ');
+}
+// Tarjeta de cuenta atrás de la próxima carrera (pantalla Hoy).
+function raceCountdown() {
+  const r = upcomingRaces()[0];
+  if (!r) return '';
+  const n = daysUntil(r.date);
+  const more = upcomingRaces().length - 1;
+  return `<section>
+    <div class="sec-head"><h2>Próxima carrera</h2><a class="muted" href="#carreras">${more > 0 ? `Ver las ${more + 1}` : 'Carreras'}</a></div>
+    <a class="race-card ${r.sport ? 's-' + esc(r.sport) : ''} ${n === 0 ? 'is-today' : ''}" href="#carreras">
+      <span class="race-count"><b class="num">${n === 0 ? '¡Hoy!' : n}</b>${n === 0 ? '' : `<span>${n === 1 ? 'día' : 'días'}</span>`}</span>
+      <span class="race-info"><span class="race-name">${esc(r.name)}</span>
+        <span class="race-sub">${esc(longDate(r.date))}${n >= 14 ? ` · ${Math.floor(n / 7)} semanas` : ''}</span>
+        ${raceMeta(r) ? `<span class="race-sub num">${esc(raceMeta(r))}</span>` : ''}</span>
+    </a>
+  </section>`;
+}
+function raceCard(r) {
+  const n = daysUntil(r.date);
+  const past = n < 0;
+  return `<button type="button" class="race-row ${r.sport ? 's-' + esc(r.sport) : ''}" data-race="${esc(r.id)}">
+    <span class="race-flag">${r.sport ? ico(r.sport) : ICO_FLAG}</span>
+    <span class="item-main"><span class="item-title">${esc(r.name)}</span>
+      <span class="item-sub">${esc(shortDate(r.date))}${raceMeta(r) ? ' · ' + esc(raceMeta(r)) : ''}</span>
+      ${past && r.resultSec ? `<span class="item-sub">Resultado: <b class="num">${esc(fmtDur(r.resultSec))}</b>${r.targetSec ? (r.resultSec <= r.targetSec ? ' · objetivo cumplido' : ` · ${fmtDur(r.resultSec - r.targetSec)} sobre el objetivo`) : ''}</span>` : ''}</span>
+    ${past ? (r.resultSec ? '' : '<span class="badge pending">Sin resultado</span>') : `<span class="badge countdown num">${n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : `${n} días`}</span>`}
+  </button>`;
+}
+function viewRaces(app, banner) {
+  const up = upcomingRaces(), past = pastRaces();
+  app.innerHTML = `${banner}
+    <div class="top"><div><div class="eyebrow">Objetivos</div><h1>Carreras</h1></div></div>
+    <button class="btn primary block" id="add-race">+ Añadir carrera</button>
+    <section><h2>Próximas</h2>${up.length ? `<div class="list">${up.map(raceCard).join('')}</div>` : '<div class="empty"><p class="muted" style="margin:0">No tienes carreras apuntadas. Añade la próxima y verás la cuenta atrás en la pantalla Hoy.</p></div>'}</section>
+    ${past.length ? `<section><h2>Pasadas</h2><div class="list">${past.map(raceCard).join('')}</div></section>` : ''}`;
+  $('#add-race', app).onclick = () => raceEditor(null);
+  $$('[data-race]', app).forEach((b) => (b.onclick = () => raceEditor(data.races.get(b.dataset.race))));
+}
+function raceEditor(r) {
+  const isNew = !r;
+  const f = r ? clone(r) : { id: uid(), name: '', date: addDays(today(), 28), sport: SPORT_KEYS.find((k) => isDistMetric(metricOf(k))) || '', distanceM: null, targetSec: null, resultSec: null, notes: '' };
+  const raceSports = [...new Set([...SPORT_KEYS, ...(f.sport ? [f.sport] : [])])];
+  const chipsFor = (k) => (!k || distUnit(k) === 'km' ? [5, 10, 21.0975, 42.195] : [750, 1500, 1900, 3800]);
+  const draw = (el) => {
+    const unitM = f.sport && distUnit(f.sport) === 'm';
+    const distVal = f.distanceM ? (unitM ? f.distanceM : +(f.distanceM / 1000).toFixed(3)) : '';
+    const isPast = f.date && f.date <= today();
+    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nueva carrera' : 'Editar carrera'}</h2>
+      <div class="field"><label for="re-name">Nombre</label><input id="re-name" type="text" maxlength="80" value="${esc(f.name)}" placeholder="p. ej. Media maratón de Valencia" autocomplete="off"></div>
+      <div class="field"><label for="re-date">Fecha</label><input id="re-date" type="date" value="${esc(f.date)}"></div>
+      <div class="field"><span class="lbl">Deporte</span><div class="chips">${raceSports.map((k) => `<button type="button" data-rs="${esc(k)}" aria-pressed="${f.sport === k}">${esc(sp(k).label)}</button>`).join('')}<button type="button" data-rs="" aria-pressed="${!f.sport}">Varios (triatlón…)</button></div></div>
+      <div class="field"><label for="re-dist">Distancia (${unitM ? 'm' : 'km'})</label><input id="re-dist" inputmode="decimal" value="${esc(distVal)}" placeholder="0" autocomplete="off">
+        <div class="chips">${chipsFor(f.sport).map((v) => `<button type="button" data-rdist="${v}">${v === 21.0975 ? 'Media' : v === 42.195 ? 'Maratón' : nf(v, 1) + (unitM ? ' m' : ' km')}</button>`).join('')}</div></div>
+      <div class="field"><label for="re-target">Marca objetivo</label><input id="re-target" inputmode="numeric" value="${esc(fmtDur(f.targetSec))}" placeholder="1:39:00" autocomplete="off"><span class="hint" id="re-pace">${racePace(f) ? `Ritmo necesario: ${esc(racePace(f))}` : 'Escribe 13900 para 1:39:00'}</span></div>
+      ${isPast ? `<div class="field"><label for="re-result">Resultado</label><input id="re-result" inputmode="numeric" value="${esc(fmtDur(f.resultSec))}" placeholder="Tu tiempo final" autocomplete="off"></div>` : ''}
+      <div class="field"><label for="re-notes">Notas</label><textarea id="re-notes" placeholder="Dorsal, recogida, logística…">${esc(f.notes)}</textarea></div>
+      <button class="btn primary block" id="re-save">${isNew ? 'Añadir carrera' : 'Guardar'}</button>
+      ${isNew ? '' : '<button class="btn danger block" id="re-del">Eliminar carrera</button>'}`;
+    const keep = () => {
+      f.name = $('#re-name', el).value; f.date = $('#re-date', el).value; f.notes = $('#re-notes', el).value;
+      const v = num($('#re-dist', el).value); f.distanceM = v == null ? null : unitM ? Math.round(v) : Math.round(v * 1000);
+      f.targetSec = parseDuration($('#re-target', el).value);
+      if ($('#re-result', el)) f.resultSec = parseDuration($('#re-result', el).value);
+    };
+    $$('[data-rs]', el).forEach((b) => (b.onclick = () => { keep(); const wasM = unitM; f.sport = b.dataset.rs; if (wasM !== (f.sport && distUnit(f.sport) === 'm')) f.distanceM = null; draw(el); }));
+    $$('[data-rdist]', el).forEach((b) => (b.onclick = () => { keep(); const v = Number(b.dataset.rdist); f.distanceM = unitM ? v : Math.round(v * 1000); draw(el); }));
+    $('#re-date', el).addEventListener('change', () => { keep(); draw(el); });
+    const paceHint = () => { keep(); $('#re-pace', el).textContent = racePace(f) ? `Ritmo necesario: ${racePace(f)}` : 'Escribe 13900 para 1:39:00'; };
+    $('#re-target', el).addEventListener('input', paceHint);
+    $('#re-dist', el).addEventListener('input', paceHint);
+    $('#re-target', el).addEventListener('blur', () => { if (f.targetSec) $('#re-target', el).value = fmtDur(f.targetSec); });
+    $('#re-save', el).onclick = async () => {
+      keep();
+      if (!f.name.trim()) { toast('Ponle nombre a la carrera'); return; }
+      if (!isISO(f.date)) { toast('Elige la fecha'); return; }
+      await put('races', cleanRace(f));
+      closeSheet(); toast(isNew ? 'Carrera añadida' : 'Carrera guardada'); render();
+    };
+    const delBtn = $('#re-del', el);
+    if (delBtn) delBtn.onclick = async () => {
+      if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para eliminar'; return; }
+      await del('races', f.id); closeSheet(); toast('Carrera eliminada'); render();
+    };
+  };
+  openSheet('', draw);
+}
+function cleanRace(r) {
+  if (!r || !isISO(r.date) || !String(r.name || '').trim()) return null;
+  const n = (v) => (Number(v) > 0 ? Math.round(Number(v)) : null);
+  return { id: typeof r.id === 'string' && /^[\w.~:@+-]+$/.test(r.id) ? r.id : uid(), name: String(r.name).trim().slice(0, 80), date: r.date,
+    sport: validKey(r.sport) ? r.sport : '', distanceM: n(r.distanceM), targetSec: n(r.targetSec), resultSec: n(r.resultSec), notes: String(r.notes || '').slice(0, 1000) };
 }
 
 // ===================== AJUSTES =====================
@@ -1405,6 +1565,11 @@ function viewSettings(app, banner) {
         <button class="btn small" data-sedit="${esc(d.key)}">Editar</button>
       </div>`).join('')}</div>
       <button class="btn primary block" id="add-sport">+ Añadir deporte</button>
+    </section>
+    <section><h2>Carreras y material</h2>
+      <div class="list">
+        <a class="item" href="#carreras"><span class="tile c-ink">${ICO_FLAG}</span><span class="item-main"><span class="item-title">Carreras</span><span class="item-sub">${upcomingRaces().length ? `${upcomingRaces().length} próxima${upcomingRaces().length === 1 ? '' : 's'} · ${esc(countdownTxt(daysUntil(upcomingRaces()[0].date)).toLowerCase())}` : 'Apunta tus próximas carreras y marcas objetivo'}</span></span>${ICO_R}</a>
+      </div>
     </section>
     <section><h2>Objetivo semanal</h2>
       <p class="hint">Días de entreno por semana. La app te avisa si te pasas o te quedas corto.</p>

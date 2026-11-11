@@ -301,3 +301,22 @@ textarea.dump { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; m
 .iconbtn:disabled { opacity: .35; }
 .rec-l .ico { width: 15px; height: 15px; color: var(--c); vertical-align: -2px; margin-right: 4px; }
 .stile-h > span, .vl > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Carreras */
+.race-card { display: flex; align-items: center; gap: 16px; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.race-card.is-today { border: 2px solid var(--ink); }
+.race-count { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 72px; padding: 6px 8px; border-radius: 12px; background: var(--ink); color: var(--on-ink); }
+.race-count b { font-family: var(--font-display); font-size: 2.2rem; line-height: 1; }
+.race-count span { font-size: .78rem; font-weight: 600; }
+.race-info { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.race-name { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; line-height: 1.1; overflow-wrap: anywhere; }
+.race-sub { font-size: .88rem; color: var(--muted); }
+.race-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; background: none; border: 0; width: 100%; min-height: 64px; }
+.race-row + .race-row { border-top: 1px solid var(--line); }
+.race-flag { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--c, var(--ink)); color: var(--on-sport); }
+.race-row:not([class*="s-"]) .race-flag { background: var(--ink); color: var(--on-ink); }
+.badge.countdown { background: var(--ink); color: var(--on-ink); }
+.pill.race { text-decoration: none; background: transparent; box-shadow: inset 0 0 0 2px var(--ink); color: var(--fg); }
+.pill.race .ico { color: var(--fg); }
+.c-ink { background: var(--ink); color: var(--on-ink); }
+a.item { text-decoration: none; color: inherit; }
