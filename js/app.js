@@ -200,6 +200,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
+const APP_VERSION = '2026.11.12-1'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -1708,7 +1709,8 @@ function viewSettings(app, banner) {
     </section>
     <section><h2>Instalar en el móvil</h2>
       <p class="muted" style="margin:0">iPhone: abre la app en Safari, pulsa Compartir y luego «Añadir a pantalla de inicio». Android: menú ⋮ de Chrome y «Instalar app».</p>
-    </section>`;
+    </section>
+    <p class="banner">Versión ${APP_VERSION}</p>`;
   $$('[data-sedit]', app).forEach((b) => (b.onclick = () => sportEditor(sp(b.dataset.sedit))));
   $$('[data-up]', app).forEach((b) => (b.onclick = () => {
     const i = Number(b.dataset.up); const arr = settings.sports;
