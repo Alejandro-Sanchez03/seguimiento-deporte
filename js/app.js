@@ -65,7 +65,7 @@ const PRESET_MAP = Object.fromEntries(PRESETS.map((p) => [p.key, p]));
 const DEFAULT_ACTIVE = ['swim', 'run', 'bike', 'strength'];
 
 // Ajustes guardados: deportes (activos y ocultos), objetivo semanal y última copia.
-let settings = { sports: DEFAULT_ACTIVE.map((k) => ({ ...PRESET_MAP[k] })), goalDays: 6, lastExport: null };
+let settings = { sports: DEFAULT_ACTIVE.map((k) => ({ ...PRESET_MAP[k] })), goalDays: 6, lastExport: null, name: '', namePrompted: false, widgets: null };
 let SPORTS = {};
 let SPORT_KEYS = []; // deportes activos, en orden
 function applySports() {
@@ -200,7 +200,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.12-1'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.12-2'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -397,17 +397,59 @@ window.addEventListener('hashchange', () => {
 });
 
 // ===================== HOY =====================
-function viewToday(app, banner) {
-  const t = today();
-  if (store === 'loading') { app.innerHTML = `<div class="top"><div><div class="date">${esc(longDate(t))}</div><h1>Hoy te toca</h1></div></div><div class="skel"></div>`; return; }
+// ---------- Panel de inicio: widgets ----------
+const WIDGETS = [
+  { id: 'today', label: 'Hoy te toca', desc: 'Sesiones planificadas para hoy, con botón para registrarlas, y lo de mañana' },
+  { id: 'week', label: 'Resumen de la semana', desc: 'Días entrenados frente al objetivo, horas y reparto por deporte' },
+  { id: 'quick', label: 'Registro rápido', desc: 'Botones con tus deportes más usados' },
+  { id: 'race', label: 'Próxima carrera o evento', desc: 'Cuenta atrás de la siguiente' },
+  { id: 'recent', label: 'Últimas sesiones', desc: 'Las cuatro más recientes' },
+  { id: 'alerts', label: 'Avisos', desc: 'Copia de seguridad, material cerca del límite y sesiones sin hacer' },
+  { id: 'trend', label: 'Horas por semana', desc: 'Gráfica de las últimas 8 semanas', off: true },
+];
+const WIDGET_MAP = Object.fromEntries(WIDGETS.map((w) => [w.id, w]));
+// Lista de widgets guardada en Ajustes: respeta el orden del usuario y añade los nuevos al final.
+function widgetList() {
+  const saved = Array.isArray(settings.widgets) ? settings.widgets.filter((w) => w && WIDGET_MAP[w.id]) : [];
+  const seen = new Set(saved.map((w) => w.id));
+  return [...saved.map((w) => ({ id: w.id, on: w.on !== false })), ...WIDGETS.filter((w) => !seen.has(w.id)).map((w) => ({ id: w.id, on: !w.off }))];
+}
+function greetingText() {
+  const h = new Date().getHours();
+  const g = h >= 6 && h < 13 ? 'Buenos días' : h >= 13 && h < 21 ? 'Buenas tardes' : 'Buenas noches';
+  return settings.name ? `${g}, ${settings.name}` : g;
+}
+const trainedDays = (mon, until) => new Set(sessionsIn(mon, addDays(until, 1)).map((s) => s.date)).size;
+function statusLine() {
+  const t = today(), mon = mondayOf(t), G = settings.goalDays || 6;
+  const done = trainedDays(mon, t);
+  const parts = [];
+  if (done > G) parts.push(`Llevas ${done} días de entreno esta semana, más que tu objetivo de ${G}`);
+  else if (done === G) parts.push(`Objetivo de la semana cumplido: ${done} de ${G} días`);
+  else parts.push(`Llevas ${done} de ${G} días de entreno esta semana`);
+  const r = upcomingRaces()[0];
+  if (r) {
+    const n = daysUntil(r.date);
+    if (n === 0) parts.push(`Hoy es «${r.name}»`);
+    else if (n === 1) parts.push(`Mañana es «${r.name}»`);
+    else if (n <= 60) parts.push(`Faltan ${n} días para «${r.name}»`);
+  }
+  return parts.join('. ') + '.';
+}
+function namePrompt() {
+  if (settings.name || settings.namePrompted) return '';
+  return `<form class="box nameask" id="name-ask">
+    <label for="name-in"><b>¿Cómo te llamas?</b> <span class="muted">Lo usaré para saludarte. Puedes cambiarlo en Ajustes.</span></label>
+    <div class="row"><input id="name-in" type="text" maxlength="30" autocomplete="given-name" placeholder="Tu nombre"><button class="btn primary" type="submit">Guardar</button></div>
+    <button class="btn ghost small" type="button" id="name-skip">Ahora no</button>
+  </form>`;
+}
+
+function wToday(t) {
   const items = planOn(t);
   const extra = sessionsOn(t).filter((s) => !items.some((p) => p.sessionId === s.id));
-  const mon = mondayOf(t);
-  const w = weekInfo(mon);
-  const missed = w.days.filter((d) => d < t).flatMap((d) => planOn(d).filter((p) => planState(p) === 'missed'));
   const tomorrow = planOn(addDays(t, 1));
   const st = dayStatus(t);
-
   const cards = items.map((p) => {
     const done = planState(p) === 'done';
     const s = done ? data.sessions.get(p.sessionId) : null;
@@ -422,57 +464,123 @@ function viewToday(app, banner) {
              <div class="row"><button class="btn" data-move="${esc(p.id)}">Mover a otro día</button></div>`}
       </div></article>`;
   }).join('');
-
-  const emptyCard = !items.length ? `<div class="empty">
-      <h2>${extra.length ? 'Nada más planificado' : 'Hoy no tienes sesión planificada'}</h2>
-      <p class="muted" style="margin:0">${w.train >= 6 && !extra.length ? 'Puede ser tu día de descanso de la semana.' : 'Registra lo que hagas o planifica la semana.'}</p>
+  const empty = !items.length ? `<div class="empty">
+      <h3>${extra.length ? 'Nada más planificado para hoy' : 'Hoy no tienes sesión planificada'}</h3>
+      <p class="muted" style="margin:0">${extra.length ? 'Ya has registrado lo de hoy.' : 'Registra lo que hagas o planifica la semana.'}</p>
       <div class="row"><a class="btn primary" href="#registrar" data-new>Registrar sesión</a><a class="btn" href="#semana">Planificar</a></div>
     </div>` : '';
+  return `<section class="widget" data-w="today">
+    <div class="sec-head"><h2>Hoy te toca</h2><button class="daychip" data-st="${st}" data-daytoggle="${t}">${st === 'work' ? 'Trabajo' : st === 'off' ? 'Libro' : 'Marcar día'}</button></div>
+    ${cards}${empty}
+    ${extra.length ? `<div class="eyebrow">También hecho hoy</div><div class="list">${extra.map(sessionRow).join('')}</div>` : ''}
+    ${tomorrow.length ? `<div class="eyebrow">Mañana</div><div class="list">${tomorrow.map(planRow).join('')}</div>` : ''}
+  </section>`;
+}
 
-  const extraList = extra.length ? `<section><div class="eyebrow">También hecho hoy</div><div class="list">${extra.map(sessionRow).join('')}</div></section>` : '';
-
-  const missedSec = missed.length ? `<section>
-      <div class="sec-head"><h2>Pendientes de esta semana</h2></div>
-      <div class="list">${missed.map((p) => `<div class="item s-${p.sport}">
-        <span class="tile">${ico(p.sport)}</span>
-        <span class="item-main"><span class="item-title">${esc(p.desc || p.type || sp(p.sport).label)}</span><span class="item-sub">${esc(shortDate(p.date))} · no registrada</span></span>
-        <button class="btn small" data-today="${esc(p.id)}">A hoy</button>
-        <button class="iconbtn" data-sheet="${esc(p.id)}" aria-label="Más opciones">${ICO_MORE}</button>
-      </div>`).join('')}</div></section>` : '';
-
-  const goal = goalNote(w, true);
+function wWeek(t) {
+  const mon = mondayOf(t), G = settings.goalDays || 6;
+  const w = weekInfo(mon);
+  const done = trainedDays(mon, t);
+  const list = sessionsIn(mon, addDays(mon, 7));
+  const tot = totals(list);
+  const keys = sportsWithData(list);
   const strip = w.days.map((d) => {
-    const dots = planOn(d).map((p) => `<i class="dot s-${p.sport} ${planState(p) === 'done' ? '' : 'hollow'}"></i>`).join('')
-      + sessionsOn(d).filter((s) => !planOn(d).some((p) => p.sessionId === s.id)).map((s) => `<i class="dot s-${s.sport}"></i>`).join('');
-    return `<a href="#semana" class="${d === t ? 'is-today' : ''}"><span class="d">${dowOf(d)}</span><span class="n">${fromISO(d).getDate()}</span><span class="dots">${dots}</span></a>`;
+    const pl = planOn(d), ss = sessionsOn(d);
+    const dots = pl.map((p) => `<i class="dot s-${p.sport} ${planState(p) === 'done' ? '' : 'hollow'}"></i>`).join('')
+      + ss.filter((s) => !pl.some((p) => p.sessionId === s.id)).map((s) => `<i class="dot s-${s.sport}"></i>`).join('');
+    return `<a href="#semana" class="${d === t ? 'is-today' : ''} ${ss.length ? 'trained' : ''}"><span class="d">${dowOf(d)}</span><span class="n">${fromISO(d).getDate()}</span><span class="dots">${dots}</span></a>`;
   }).join('');
-
-  const recent = sessionsDesc().slice(0, 4);
-  app.innerHTML = `${banner}
-    <div class="top">
-      <div><div class="date">${esc(longDate(t))}</div><h1>Hoy te toca</h1></div>
-      <button class="daychip" data-st="${st}" data-daytoggle="${t}">${st === 'work' ? 'Trabajo' : st === 'off' ? 'Libro' : 'Marcar día'}</button>
+  const goal = goalNote(w, true);
+  return `<section class="widget" data-w="week">
+    <div class="sec-head"><h2>Esta semana</h2><a class="muted" href="#semana">Ver semana</a></div>
+    <div class="stats3">
+      <div class="stat"><b class="num">${done}/${G}</b><span>días entrenados</span></div>
+      <div class="stat"><b class="num">${Math.floor(Math.round(tot.sec / 60) / 60)}:${pad2(Math.round(tot.sec / 60) % 60)}</b><span>horas</span></div>
+      <div class="stat"><b class="num">${tot.n}</b><span>sesiones</span></div>
     </div>
-    ${cards}${emptyCard}
-    ${backupNote()}
-    ${extraList}
-    ${tomorrow.length ? `<section><div class="eyebrow">Mañana</div><div class="list">${tomorrow.map(planRow).join('')}</div></section>` : ''}
-    ${raceCountdown()}
-    ${shoeWarnings()}
-    ${missedSec}
-    <section>
-      <div class="sec-head"><h2>Esta semana</h2><a class="muted" href="#semana">Ver semana</a></div>
-      <div class="strip">${strip}</div>
-      <div class="meter">
-        <div class="sec-head"><span>Plan cumplido</span><b class="num">${w.done} de ${w.planned}</b></div>
-        <div class="meter-bar"><i style="width:${w.planned ? Math.round((w.done / w.planned) * 100) : 0}%"></i></div>
-      </div>
-      <div class="note ${goal.cls}">${esc(goal.txt)}</div>
-    </section>
-    ${homeStats(t)}
-    ${recent.length ? `<section><div class="sec-head"><h2>Últimas sesiones</h2><a class="muted" href="#progreso" data-prog="all">Todas</a></div><div class="list">${recent.map(sessionRow).join('')}</div></section>` : ''}`;
+    <div class="strip">${strip}</div>
+    ${keys.length && tot.sec ? `<div class="split" role="img" aria-label="Reparto de horas por deporte">${keys.filter((k) => tot.by[k].sec).map((k) => `<i class="s-${k}" style="flex:${tot.by[k].sec}"></i>`).join('')}</div>
+    <div class="split-legend">${keys.map((k) => `<button type="button" class="s-${k}" data-prog="${k}"><i></i>${esc(sp(k).label)} <b class="num">${esc(tot.by[k].sec ? fmtHM(tot.by[k].sec) : tot.by[k].n + ' ses.')}</b>${isDistMetric(metricOf(k)) && tot.by[k].dist ? ` <span class="muted num">${esc(volTxt(k, tot.by[k]))}</span>` : ''}</button>`).join('')}</div>` : '<p class="hint" style="margin:0">Aún no has registrado sesiones esta semana.</p>'}
+    ${w.planned ? `<div class="meter"><div class="sec-head"><span>Plan cumplido</span><b class="num">${w.done} de ${w.planned}</b></div><div class="meter-bar"><i style="width:${Math.round((w.done / w.planned) * 100)}%"></i></div></div>` : ''}
+    <div class="note ${goal.cls}">${esc(goal.txt)}</div>
+  </section>`;
+}
 
+// Deportes más usados en los últimos 90 días; se completan con los activos.
+function topSports(n) {
+  const from = addDays(today(), -90), count = {};
+  for (const s of data.sessions.values()) if (s.date >= from && SPORT_KEYS.includes(s.sport)) count[s.sport] = (count[s.sport] || 0) + 1;
+  const used = Object.keys(count).sort((a, b) => count[b] - count[a]);
+  return [...used, ...SPORT_KEYS.filter((k) => !used.includes(k))].slice(0, n);
+}
+function wQuick() {
+  return `<section class="widget" data-w="quick">
+    <div class="sec-head"><h2>Registro rápido</h2><a class="muted" href="#registrar" data-new>Otro</a></div>
+    <div class="quick" style="--cols:${[1, 2, 3, 2, 3, 3][Math.min(6, topSports(6).length) - 1] || 3}">${topSports(6).map((k) => `<button type="button" class="s-${k}" data-quick="${esc(k)}">${ico(k)}<span>${esc(sp(k).label)}</span></button>`).join('')}</div>
+  </section>`;
+}
+function wRace() {
+  const card = raceCountdown();
+  if (card) return card.replace('<section>', '<section class="widget" data-w="race">');
+  return `<section class="widget" data-w="race"><div class="sec-head"><h2>Próxima carrera</h2></div>
+    <a class="empty compact" href="#carreras"><span>No tienes carreras ni eventos apuntados.</span><b>Añadir</b></a></section>`;
+}
+function wRecent() {
+  const recent = sessionsDesc().slice(0, 4);
+  return `<section class="widget" data-w="recent"><div class="sec-head"><h2>Últimas sesiones</h2><a class="muted" href="#progreso" data-prog="all">Todas</a></div>
+    ${recent.length ? `<div class="list">${recent.map(sessionRow).join('')}</div>` : '<p class="hint" style="margin:0">Cuando registres sesiones aparecerán aquí.</p>'}</section>`;
+}
+function wAlerts(t) {
+  const mon = mondayOf(t);
+  const missed = Array.from({ length: 7 }, (_, i) => addDays(mon, i)).filter((d) => d < t).flatMap((d) => planOn(d).filter((p) => planState(p) === 'missed'));
+  const parts = [backupNote(), gearWarnings()];
+  if (missed.length) {
+    parts.push(`<div class="list">${missed.map((p) => `<div class="item s-${p.sport}">
+      <span class="tile">${ico(p.sport)}</span>
+      <span class="item-main"><span class="item-title">${esc(p.desc || p.type || sp(p.sport).label)}</span><span class="item-sub">${esc(shortDate(p.date))} · planificada y sin registrar</span></span>
+      <button class="btn small" data-today="${esc(p.id)}">A hoy</button>
+      <button class="iconbtn" data-sheet="${esc(p.id)}" aria-label="Más opciones">${ICO_MORE}</button>
+    </div>`).join('')}</div>`);
+  }
+  const body = parts.filter(Boolean).join('');
+  if (!body) return '';
+  return `<section class="widget" data-w="alerts"><div class="sec-head"><h2>Avisos</h2></div>${body}</section>`;
+}
+function wTrend(t) {
+  const mon = mondayOf(t);
+  const bk = buckets('week', { from: mon, to: addDays(mon, 7) }).slice(-8);
+  const keys = sportsWithData(sessionsIn(bk[0].from, addDays(t, 1)));
+  if (!keys.length) return '';
+  const series = keys.map((k) => ({ name: sp(k).label, color: sportColor(k), values: bk.map((b) => sessionsIn(b.from, b.to, k).reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
+  return `<section class="widget" data-w="trend"><div class="sec-head"><h2>Horas por semana</h2><a class="muted" href="#progreso" data-prog="all">Progreso</a></div>
+    <div class="box">${barChart(bk.map((b) => b.label), series, (v) => `${nf(v, 1)} h`, 'Horas de entrenamiento por semana y deporte')}
+    <div class="legend">${keys.map((k) => `<span><i style="background:${sportColor(k)}"></i>${esc(sp(k).label)}</span>`).join('')}</div></div></section>`;
+}
+const WIDGET_RENDER = { today: wToday, week: wWeek, quick: wQuick, race: wRace, recent: wRecent, alerts: wAlerts, trend: wTrend };
+
+function viewToday(app, banner) {
+  const t = today();
+  const widgets = widgetList().filter((w) => w.on).map((w) => WIDGET_RENDER[w.id](t)).join('');
+  app.innerHTML = `${banner}
+    <header class="greet">
+      <h1>${esc(greetingText())}</h1>
+      <div class="date">${esc(longDate(t))}</div>
+      <p class="status">${esc(statusLine())}</p>
+    </header>
+    ${namePrompt()}
+    ${widgets || '<div class="empty"><p class="muted" style="margin:0">Has ocultado todos los bloques. Puedes elegir cuáles ver en Ajustes → Pantalla de inicio.</p><a class="btn" href="#ajustes">Ir a Ajustes</a></div>'}`;
   bindCommon(app);
+  $$('[data-quick]', app).forEach((b) => (b.onclick = () => { draft = newDraft({ sport: b.dataset.quick }); go('registrar'); }));
+  const form = $('#name-ask', app);
+  if (form) {
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const name = $('#name-in', form).value.trim().slice(0, 30);
+      if (!name) { toast('Escribe tu nombre o pulsa «Ahora no»'); return; }
+      settings.name = name; settings.namePrompted = true; saveSettings(); render();
+    };
+    $('#name-skip', form).onclick = () => { settings.namePrompted = true; saveSettings(); render(); };
+  }
 }
 
 function planRow(p) {
@@ -1220,30 +1328,6 @@ function sportsWithData(list) {
   const keys = [...SPORT_KEYS.filter((k) => used.has(k)), ...[...used].filter((k) => !SPORT_KEYS.includes(k))];
   return keys;
 }
-function homeStats(t) {
-  if (!data.sessions.size) return '';
-  const mon = mondayOf(t);
-  const curList = sessionsIn(mon, addDays(t, 1));
-  const cur = totals(curList);
-  const prev = totals(sessionsIn(addDays(mon, -7), addDays(t, -6)));
-  const delta = prev.sec ? Math.round(((cur.sec - prev.sec) / prev.sec) * 100) : null;
-  const bk = buckets('week', { from: mon, to: addDays(mon, 7) }).slice(-8);
-  const recent = sessionsIn(bk[0].from, addDays(t, 1));
-  const keys = sportsWithData(recent);
-  const tileKeys = (keys.length ? keys : SPORT_KEYS).slice(0, 6);
-  const series = keys.map((k) => ({ name: sp(k).label, color: sportColor(k), values: bk.map((b) => sessionsIn(b.from, b.to, k).reduce((a, s) => a + (s.durationSec || 0), 0) / 3600) }));
-  return `<section>
-    <div class="sec-head"><h2>Tus números</h2><a class="muted" href="#progreso" data-prog="all">Ver progreso</a></div>
-    <div class="sum"><b class="num">${cur.n}</b> sesiones · <b class="num">${fmtHM(cur.sec)}</b> esta semana${delta != null ? ` <span class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : ''}${delta} %</span><span class="muted"> vs. semana pasada a estas alturas</span>` : ''}</div>
-    <div class="tiles">${tileKeys.map((k) => { const b = cur.by[k] || { n: 0, sec: 0, dist: 0 }; return `<button type="button" class="stile s-${k}" data-prog="${k}">
-      <span class="stile-h">${ico(k)}<span>${esc(sp(k).label)}</span></span>
-      <b class="num">${b.n ? esc(volTxt(k, b)) : '—'}</b>
-      <span class="muted">${b.n ? `${b.n} ses. · ${fmtHM(b.sec)}` : 'Sin sesiones esta semana'}</span></button>`; }).join('')}</div>
-    ${series.length ? `<div class="box"><span class="eyebrow">Horas por semana</span>${barChart(bk.map((b) => b.label), series, (v) => `${nf(v, 1)} h`, 'Horas de entrenamiento por semana y deporte')}
-      <div class="legend">${keys.map((k) => `<span><i style="background:${sportColor(k)}"></i>${esc(sp(k).label)}</span>`).join('')}</div></div>` : ''}
-  </section>`;
-}
-
 // ---------- Pestaña Progreso ----------
 function viewProgress(app, banner) {
   const ps = progSport;
@@ -1566,7 +1650,7 @@ function defaultShoe(sport) {
   if (last) return last.shoeId;
   return opts.length === 1 ? opts[0].id : null;
 }
-function shoeWarnings() {
+function gearWarnings() {
   return [...data.shoes.values()].filter((sh) => !sh.retired && shoeState(sh) !== 'ok').map((sh) => {
     const km = Math.round(shoeKm(sh)), lim = shoeLimit(sh);
     return shoeState(sh) === 'over'
@@ -1672,6 +1756,17 @@ function viewSettings(app, banner) {
   const ds = daysSince(settings.lastExport);
   const used = new Set([...data.sessions.values()].map((s) => s.sport));
   app.innerHTML = `${banner}<h1>Ajustes</h1>
+    <section><h2>Pantalla de inicio</h2>
+      <div class="field"><label for="set-name">Tu nombre</label>
+        <div class="row"><input id="set-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(settings.name || '')}" placeholder="Para el saludo"><button class="btn" id="set-name-save">Guardar</button></div></div>
+      <p class="hint" style="margin:0">Elige qué bloques ves al abrir la app y en qué orden.</p>
+      <div class="list">${widgetList().map((w, i, arr) => `<div class="item wrow">
+        <button type="button" class="switch" data-wtog="${w.id}" role="switch" aria-checked="${w.on}" aria-label="Mostrar ${esc(WIDGET_MAP[w.id].label)}"><i></i></button>
+        <span class="item-main"><span class="item-title">${esc(WIDGET_MAP[w.id].label)}</span><span class="item-sub">${esc(WIDGET_MAP[w.id].desc)}</span></span>
+        <button class="iconbtn" data-wmove="${i}:-1" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="iconbtn" data-wmove="${i}:1" aria-label="Bajar" ${i === arr.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>`).join('')}</div>
+    </section>
     <section><div class="sec-head"><h2>Mis deportes</h2></div>
       <p class="hint">Los deportes activos salen al registrar y planificar. Ocultar uno no borra sus sesiones.</p>
       <div class="list">${settings.sports.map((d, i) => `<div class="item s-${d.key}">
@@ -1712,6 +1807,16 @@ function viewSettings(app, banner) {
     </section>
     <p class="banner">Versión ${APP_VERSION}</p>`;
   $$('[data-sedit]', app).forEach((b) => (b.onclick = () => sportEditor(sp(b.dataset.sedit))));
+  $('#set-name-save', app).onclick = () => { settings.name = $('#set-name', app).value.trim().slice(0, 30); settings.namePrompted = true; saveSettings(); toast(settings.name ? `Hola, ${settings.name}` : 'Nombre borrado'); render(); };
+  $$('[data-wtog]', app).forEach((b) => (b.onclick = () => {
+    const list = widgetList(); const w = list.find((x) => x.id === b.dataset.wtog); w.on = !w.on;
+    settings.widgets = list; saveSettings(); render();
+  }));
+  $$('[data-wmove]', app).forEach((b) => (b.onclick = () => {
+    const [i, dir] = b.dataset.wmove.split(':').map(Number); const list = widgetList(); const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; settings.widgets = list; saveSettings(); render();
+  }));
   $$('[data-up]', app).forEach((b) => (b.onclick = () => {
     const i = Number(b.dataset.up); const arr = settings.sports;
     [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; saveSettings(); render();
