@@ -1,18 +1,18 @@
 # Cuaderno de Entreno
 
-App web para registrar y planificar entrenamientos de **cualquier deporte**: carrera, natación, ciclismo, fuerza, pádel, escalada, senderismo, remo… y los que crees tú. Pensada para el móvil y publicada con GitHub Pages.
+Tu app única de deporte: registro de entrenos, plan semanal, gimnasio, carreras y eventos, material y progreso, en un solo sitio y para **cualquier deporte** (carrera, natación, ciclismo, fuerza, pádel, escalada, senderismo, remo… y los que crees tú). Pensada para el móvil y publicada con GitHub Pages desde la rama `main`.
 
 **Abrir la app:** https://alejandro-sanchez03.github.io/seguimiento-deporte/
 
 ## Qué hace
 
-- **Hoy:** la sesión que toca, la semana de un vistazo, el objetivo de días y tus números de la semana.
+- **Inicio:** saludo con tu nombre y tu estado de la semana, y widgets que puedes mostrar, ocultar y reordenar: lo que toca hoy, resumen de la semana, registro rápido, próxima carrera o evento, últimas sesiones, avisos y gráfica de horas.
 - **Registrar:** formulario que se adapta a cómo se mide cada deporte (ritmo /km, ritmo /100 m, ritmo /500 m, velocidad, solo tiempo o ejercicios con series y kg).
 - **Semana:** plan por días, mover e intercambiar sesiones, días de trabajo y libres, copiar el plan a varias semanas.
 - **Progreso:** volumen, gráficas de evolución y récords, para todos los deportes o uno solo.
-- **Carreras:** próximas carreras con fecha, distancia, marca objetivo y ritmo necesario; cuenta atrás en Hoy.
-- **Zapatillas:** kilómetros de cada par, elegidas al registrar; aviso a partir de 600 km y al llegar a 700 (límite configurable).
-- **Ajustes:** tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal, carreras, zapatillas y copias de seguridad.
+- **Carreras y eventos:** de cualquier deporte, con fecha, distancia opcional y objetivo (tiempo o texto); cuenta atrás en el inicio.
+- **Material:** zapatillas, bici, neopreno u otro; se elige al registrar y suma km u horas. Zapatillas: aviso a partir de 600 km y a los 700.
+- **Ajustes:** tu nombre, pantalla de inicio, tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal, carreras, material y copias de seguridad.
 
 ## Instalar en el móvil
 

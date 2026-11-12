@@ -18,6 +18,7 @@ const ICONS = {
   box: '<path d="M7 7a4 4 0 018 0v4H7z"/><path d="M7 11v4a3 3 0 003 3h3a3 3 0 003-3v-4M10 18v3h4v-3"/>',
   heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.5-7 10-7 10z"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+  shoe: '<path d="M3 16v-5l4-1 3 3h3l7 2a2 2 0 011 2v1H3z"/><path d="M3 19h18M8 13l1-2M11 13l1-2"/>',
 };
 const ICON_NAMES = Object.keys(ICONS);
 const icoName = (name, extra = '') => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${ICONS[name] || ICONS.bolt}</svg>`;
@@ -190,20 +191,25 @@ const sessionTitle = (s) => s.title || [sp(s.sport).label, s.type].filter(Boolea
 
 // ===================== Datos (en el dispositivo) =====================
 // Todo se guarda en localStorage con la clave LS_KEY, en un único objeto:
-//   { schema, sessions: [...], plan: [...], days: [...], races: [...], shoes: [...] }
+//   { schema, sessions: [...], plan: [...], days: [...], races: [...], gear: [...] }
 // Las colecciones nuevas se añaden sin tocar las existentes. Cada cambio de estructura sube
 // SCHEMA y tiene su paso en migrate(); antes de migrar se guarda una copia del estado anterior.
-const COLLS = ['sessions', 'plan', 'days', 'races', 'shoes'];
+const COLLS = ['sessions', 'plan', 'days', 'races', 'gear'];
 const data = Object.fromEntries(COLLS.map((c) => [c, new Map()]));
-const SCHEMA = 3;
+const SCHEMA = 4;
 let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.12-3'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.12-4'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
+// Zapatilla del formato anterior (v3) → material.
+function shoeToGear(sh) {
+  return { id: sh.id, name: sh.name || 'Zapatillas', kind: 'shoes', sports: Array.isArray(sh.sports) && sh.sports.length ? sh.sports : ['run'], measure: 'km',
+    startValue: Number(sh.startKm) || 0, limit: Number(sh.limitKm) || 700, retired: !!sh.retired, createdAt: Number(sh.createdAt) || Date.now() };
+}
 function migrate(raw) {
   const from = Number(raw.schema) || 1;
   if (from >= SCHEMA) return { raw, changed: false };
@@ -215,6 +221,15 @@ function migrate(raw) {
   if (from < 2) raw.races = Array.isArray(raw.races) ? raw.races : [];
   // v2 → v3: se añade la lista de zapatillas. Las sesiones pueden llevar shoeId (opcional).
   if (from < 3) raw.shoes = Array.isArray(raw.shoes) ? raw.shoes : [];
+  // v3 → v4: las zapatillas pasan a ser material de tipo «zapatillas» (se conserva su id, nombre, km y límite)
+  // y el shoeId de cada sesión pasa a la lista gearIds. Nada más cambia.
+  if (from < 4) {
+    raw.gear = [...(Array.isArray(raw.gear) ? raw.gear : []), ...(Array.isArray(raw.shoes) ? raw.shoes : []).filter((x) => x && x.id).map(shoeToGear)];
+    delete raw.shoes;
+    for (const ses of Array.isArray(raw.sessions) ? raw.sessions : []) {
+      if (ses && ses.shoeId) { ses.gearIds = [...new Set([...(Array.isArray(ses.gearIds) ? ses.gearIds : []), ses.shoeId])]; delete ses.shoeId; }
+    }
+  }
   raw.schema = SCHEMA;
   return { raw, changed: true };
 }
@@ -352,7 +367,8 @@ function routeFromHash() {
   const r = location.hash.slice(1) || 'hoy';
   if (r === 'historial') return 'progreso';
   if (r === 'datos') return 'ajustes';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'zapatillas'].includes(r) ? r : 'hoy';
+  if (r === 'zapatillas') return 'material';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'material'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -385,7 +401,7 @@ function render(fromData = false) {
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
   const banner = unreadableNote ? '<div class="note bad">Había datos guardados que no se pudieron leer. Se han apartado sin borrarlos. Si echas algo en falta, importa tu última copia de seguridad.</div>' : '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, zapatillas: viewShoes };
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, material: viewGear };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -404,7 +420,7 @@ const WIDGETS = [
   { id: 'quick', label: 'Registro rápido', desc: 'Botones con tus deportes más usados' },
   { id: 'race', label: 'Próxima carrera o evento', desc: 'Cuenta atrás de la siguiente' },
   { id: 'recent', label: 'Últimas sesiones', desc: 'Las cuatro más recientes' },
-  { id: 'alerts', label: 'Avisos', desc: 'Copia de seguridad, material cerca del límite y sesiones sin hacer' },
+  { id: 'alerts', label: 'Avisos', desc: 'Copia de seguridad, material cerca del límite (zapatillas a 700 km) y sesiones sin hacer' },
   { id: 'trend', label: 'Horas por semana', desc: 'Gráfica de las últimas 8 semanas', off: true },
 ];
 const WIDGET_MAP = Object.fromEntries(WIDGETS.map((w) => [w.id, w]));
@@ -844,7 +860,7 @@ function newDraft(o) {
     id: null, sport: o.sport || lastSport() || firstSport(), date: o.date || today(), title: o.title || '', type: o.type || '',
     durationSec: null, distanceM: null, elevationM: null, rpe: null, feel: null, notes: '',
     gear: [], reps: { count: null, distM: null, paces: [] },
-    exercises: [], planId: o.planId || null, shoeId: undefined,
+    exercises: [], planId: o.planId || null, gearIds: undefined,
   };
 }
 // El deporte de la última sesión registrada, para ahorrar un toque.
@@ -869,7 +885,7 @@ function editSession(id) {
   draft.gear = gearOf(s);
   draft.reps = draft.reps || { count: null, distM: null, paces: [] };
   draft.exercises = draft.exercises || [];
-  draft.shoeId = s.shoeId || null;
+  draft.gearIds = Array.isArray(s.gearIds) ? [...s.gearIds] : s.shoeId ? [s.shoeId] : [];
   closeSheet();
   go('registrar');
 }
@@ -911,15 +927,14 @@ function viewForm(app, banner) {
   if (S.elev) {
     specific += `<div class="field"><label for="f-elev">Desnivel positivo (m)</label><input id="f-elev" inputmode="numeric" value="${esc(d.elevationM ?? '')}" placeholder="0" autocomplete="off"></div>`;
   }
-  const shoeOpts = shoesFor(d.sport);
-  if (d.shoeId === undefined) d.shoeId = defaultShoe(d.sport);
-  const curShoe = d.shoeId ? data.shoes.get(d.shoeId) : null;
-  if (curShoe && !shoeOpts.includes(curShoe)) shoeOpts.push(curShoe); // al editar una sesión con zapatillas ya retiradas
-  if (shoeOpts.length) {
-    specific += `<div class="field"><span class="lbl">Zapatillas</span><div class="chips">${shoeOpts.map((sh) => `<button type="button" data-shoepick="${esc(sh.id)}" aria-pressed="${d.shoeId === sh.id}">${esc(sh.name)} · ${nf(shoeKm(sh), 0)} km</button>`).join('')}<button type="button" data-shoepick="" aria-pressed="${!d.shoeId}">Ninguna</button></div></div>`;
+  const gearOpts = gearFor(d.sport);
+  if (d.gearIds === undefined) d.gearIds = defaultGear(d.sport);
+  for (const id of d.gearIds) { const g = data.gear.get(id); if (g && !gearOpts.includes(g)) gearOpts.push(g); } // al editar con material ya retirado
+  if (gearOpts.length) {
+    specific += `<div class="field"><span class="lbl">Material</span><div class="chips">${gearOpts.map((g) => `<button type="button" data-gearpick="${esc(g.id)}" aria-pressed="${d.gearIds.includes(g.id)}">${esc(g.name)} · ${esc(gearFmt(g, gearValue(g)))}</button>`).join('')}</div></div>`;
   }
   if (S.gear?.length) {
-    specific += `<div class="field"><span class="lbl">Material</span><div class="row">${S.gear.map((g) => {
+    specific += `<div class="field"><span class="lbl">Accesorios</span><div class="row">${S.gear.map((g) => {
       const on = d.gear.includes(g);
       return `<button type="button" class="toggle" data-gear="${esc(g)}" aria-pressed="${on}">${on ? ICO_CHECK : ''}${esc(g)}</button>`;
     }).join('')}</div></div>`;
@@ -1016,7 +1031,7 @@ function bindForm(app) {
     if (d.sport === b.dataset.sport) return;
     const prevUnit = distUnit(d.sport), prevMetric = metricOf(d.sport);
     d.sport = b.dataset.sport;
-    d.shoeId = undefined;
+    d.gearIds = undefined;
     d.type = (sp(d.sport).types || []).includes(d.type) ? d.type : '';
     d.gear = d.gear.filter((g) => (sp(d.sport).gear || []).includes(g));
     if (!isDistMetric(metricOf(d.sport))) d.distanceM = null;
@@ -1039,7 +1054,7 @@ function bindForm(app) {
     d.gear = d.gear.includes(g) ? d.gear.filter((x) => x !== g) : [...d.gear, g];
     rerender();
   }));
-  $$('[data-shoepick]', form).forEach((b) => (b.onclick = () => { d.shoeId = b.dataset.shoepick || null; rerender(); }));
+  $$('[data-gearpick]', form).forEach((b) => (b.onclick = () => { const id = b.dataset.gearpick; d.gearIds = d.gearIds.includes(id) ? d.gearIds.filter((x) => x !== id) : [...d.gearIds, id]; rerender(); }));
   $$('[data-dist]', form).forEach((b) => (b.onclick = () => {
     const v = Number(b.dataset.dist); d.distanceM = unitM() ? v : Math.round(v * 1000);
     $('#f-dist').value = v; updateCalc();
@@ -1111,7 +1126,8 @@ function bindForm(app) {
     };
     if (S.gear?.length) s.gear = d.gear.filter((g) => S.gear.includes(g));
     if (S.elev) s.elevationM = d.elevationM || null;
-    if (isDistMetric(metric) && d.shoeId && data.shoes.has(d.shoeId)) s.shoeId = d.shoeId;
+    const gearIds = (d.gearIds || []).filter((id) => data.gear.has(id));
+    if (gearIds.length) s.gearIds = gearIds;
     if (S.intervals && isPaceMetric(metric) && d.type === 'Series') {
       const count = Number(d.reps.count) || 0;
       s.reps = { count, distM: d.reps.distM || null, paces: (d.reps.paces || []).slice(0, count).map((x) => x || null) };
@@ -1127,9 +1143,9 @@ function bindForm(app) {
     await put('sessions', s);
     if (plan && plan.sessionId !== s.id) await put('plan', { ...plan, sessionId: s.id });
     draft = null;
-    const shoe = s.shoeId ? data.shoes.get(s.shoeId) : null;
-    const shoeMsg = shoe && shoeState(shoe) !== 'ok' ? ` · «${shoe.name}» llevan ${nf(shoeKm(shoe), 0)} km` : '';
-    toast((d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada') + shoeMsg);
+    const warnGear = (s.gearIds || []).map((id) => data.gear.get(id)).find((g) => g && gearState(g) !== 'ok');
+    const gearMsg = warnGear ? ` · «${warnGear.name}» lleva ${gearFmt(warnGear, gearValue(warnGear))}` : '';
+    toast((d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada') + gearMsg);
     go('hoy');
   };
 }
@@ -1464,25 +1480,28 @@ function planCSV() {
 }
 function fullJSON() {
   return JSON.stringify({ app: 'cuaderno-deporte', version: 2, exportedAt: new Date().toISOString(), settings,
-    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()], races: [...data.races.values()], shoes: [...data.shoes.values()] }, null, 2);
+    sessions: [...data.sessions.values()], plan: [...data.plan.values()], days: [...data.days.values()], races: [...data.races.values()], gear: [...data.gear.values()] }, null, 2);
 }
 const validKey = (k) => typeof k === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(k);
 function cleanSession(s) {
   if (!s || !isISO(s.date) || !validKey(s.sport)) return null;
-  return { ...s, id: typeof s.id === 'string' && /^[\w.~:@+-]+$/.test(s.id) ? s.id : uid() };
+  const out = { ...s, id: typeof s.id === 'string' && /^[\w.~:@+-]+$/.test(s.id) ? s.id : uid() };
+  if (out.shoeId) { out.gearIds = [...new Set([...(Array.isArray(out.gearIds) ? out.gearIds : []), out.shoeId])]; delete out.shoeId; }
+  return out;
 }
 function cleanPlan(p) {
   if (!p || !isISO(p.date) || !validKey(p.sport)) return null;
   return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
 }
 async function importText(name, text) {
-  let sessions = [], plan = [], days = [], races = [], shoes = [];
+  let sessions = [], plan = [], days = [], races = [], gear = [];
   if (/\.json$/i.test(name) || /^\s*[{[]/.test(text)) {
     const j = JSON.parse(text);
     sessions = (j.sessions || []).map(cleanSession).filter(Boolean);
     plan = (j.plan || []).map(cleanPlan).filter(Boolean);
     races = (Array.isArray(j.races) ? j.races : []).map(cleanRace).filter(Boolean);
-    shoes = (Array.isArray(j.shoes) ? j.shoes : []).map(cleanShoe).filter(Boolean);
+    // Copias antiguas traen «shoes»; se convierten en material.
+    gear = [...(Array.isArray(j.gear) ? j.gear : []), ...(Array.isArray(j.shoes) ? j.shoes : []).filter((x) => x && x.id).map(shoeToGear)].map(cleanGear).filter(Boolean);
     days = (j.days || []).filter((x) => isISO(x?.id) && ['work', 'off'].includes(x.status)).map((x) => ({ id: x.id, status: x.status }));
     for (const def of j.settings?.sports || []) if (validKey(def?.key) && !settings.sports.some((x) => x.key === def.key)) settings.sports.push(cleanSportDef(def));
     if (j.settings?.goalDays) settings.goalDays = Math.min(7, Math.max(1, Number(j.settings.goalDays) || 6));
@@ -1502,13 +1521,13 @@ async function importText(name, text) {
       plan = rows.map((r) => cleanPlan({ id: r[ix('id')], date: r[ix('fecha')], sport: r[ix('deporte')], type: r[ix('tipo')], desc: r[ix('descripcion')], sessionId: r[ix('sesion_id')] || null })).filter(Boolean);
     } else throw new Error('formato');
   }
-  const total = sessions.length + plan.length + days.length + races.length + shoes.length;
+  const total = sessions.length + plan.length + days.length + races.length + gear.length;
   if (!total) throw new Error('vacío');
   for (const x of [...sessions, ...plan]) ensureSport(x.sport);
   saveSettings();
   toast(`Importando ${total} registros…`);
-  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x)), ...races.map((r) => () => put('races', r)), ...shoes.map((x) => () => put('shoes', x))]);
-  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones, ${plan.length} del plan, ${races.length} carreras y ${shoes.length} zapatillas`);
+  const errs = await pool([...sessions.map((s) => () => put('sessions', s)), ...plan.map((p) => () => put('plan', p)), ...days.map((x) => () => put('days', x)), ...races.map((r) => () => put('races', r)), ...gear.map((x) => () => put('gear', x))]);
+  toast(errs ? `Importado con ${errs} errores` : `Importados ${sessions.length} sesiones, ${plan.length} del plan, ${races.length} carreras o eventos y ${gear.length} de material`);
   render();
 }
 
@@ -1639,95 +1658,130 @@ function cleanRace(r) {
     goal: String(r.goal || '').trim().slice(0, 80), resultText: String(r.resultText || '').trim().slice(0, 80), notes: String(r.notes || '').slice(0, 1000) };
 }
 
-// ===================== ZAPATILLAS =====================
-const ICO_SHOE = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16v-5l4-1 3 3h3l7 2a2 2 0 011 2v1H3z"/><path d="M3 19h18M8 13l1-2M11 13l1-2"/></svg>';
-const SHOE_WARN_BEFORE = 100; // aviso a falta de 100 km del límite (600 de 700)
-const shoeSessions = (id) => [...data.sessions.values()].filter((s) => s.shoeId === id);
-const shoeKm = (sh) => (Number(sh.startKm) || 0) + shoeSessions(sh.id).reduce((a, s) => a + (s.distanceM || 0), 0) / 1000;
-const shoeLimit = (sh) => Number(sh.limitKm) || 700;
-function shoeState(sh) {
-  const km = shoeKm(sh), lim = shoeLimit(sh);
-  return km >= lim ? 'over' : km >= lim - SHOE_WARN_BEFORE ? 'near' : 'ok';
+// ===================== MATERIAL =====================
+// Zapatillas, bici, neopreno… Cada pieza suma km (distancia de las sesiones) u horas (duración).
+const GEAR_KINDS = {
+  shoes: { label: 'Zapatillas', icon: 'shoe', measure: 'km', limit: 700, sports: ['run', 'hike'] },
+  bike: { label: 'Bici', icon: 'bike', measure: 'km', limit: null, sports: ['bike'] },
+  wetsuit: { label: 'Neopreno', icon: 'swim', measure: 'hours', limit: null, sports: ['swim', 'owswim'] },
+  other: { label: 'Otro', icon: 'bolt', measure: 'hours', limit: null, sports: [] },
+};
+const ICO_GEAR = icoName('shoe');
+const gearKind = (g) => GEAR_KINDS[g.kind] || GEAR_KINDS.other;
+const gearSessions = (id) => [...data.sessions.values()].filter((s) => Array.isArray(s.gearIds) && s.gearIds.includes(id));
+function gearValue(g) {
+  const add = gearSessions(g.id).reduce((a, s) => a + (g.measure === 'km' ? (s.distanceM || 0) / 1000 : (s.durationSec || 0) / 3600), 0);
+  return (Number(g.startValue) || 0) + add;
 }
-const shoesFor = (sport) => [...data.shoes.values()].filter((sh) => !sh.retired && (sh.sports || ['run']).includes(sport)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-// Zapatilla por defecto: la última usada en ese deporte (si sigue activa) o la única que haya.
-function defaultShoe(sport) {
-  const opts = shoesFor(sport);
-  if (!opts.length) return null;
-  const last = sessionsDesc().find((s) => s.sport === sport && s.shoeId && opts.some((o) => o.id === s.shoeId));
-  if (last) return last.shoeId;
-  return opts.length === 1 ? opts[0].id : null;
+const gearFmt = (g, v) => (g.measure === 'km' ? `${nf(v, 0)} km` : `${nf(v, 1)} h`);
+const gearUnit = (g) => (g.measure === 'km' ? 'km' : 'h');
+// Aviso a partir de 6/7 del límite: 600 km en unas zapatillas de 700.
+function gearState(g) {
+  const lim = Number(g.limit) || 0;
+  if (!lim) return 'ok';
+  const v = gearValue(g);
+  return v >= lim ? 'over' : v >= lim * 6 / 7 ? 'near' : 'ok';
+}
+const gearFor = (sport) => [...data.gear.values()].filter((g) => !g.retired && (g.sports || []).includes(sport)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+// Material por defecto: el de la última sesión de ese deporte que siga en uso;
+// si no hay, la pieza única de cada tipo (p. ej. tu única bici).
+function defaultGear(sport) {
+  const opts = gearFor(sport);
+  if (!opts.length) return [];
+  const last = sessionsDesc().find((s) => s.sport === sport && Array.isArray(s.gearIds) && s.gearIds.length);
+  if (last) {
+    const ids = last.gearIds.filter((id) => opts.some((o) => o.id === id));
+    if (ids.length) return ids;
+  }
+  const byKind = {};
+  for (const g of opts) (byKind[g.kind] ||= []).push(g);
+  return Object.values(byKind).filter((l) => l.length === 1).map((l) => l[0].id);
 }
 function gearWarnings() {
-  return [...data.shoes.values()].filter((sh) => !sh.retired && shoeState(sh) !== 'ok').map((sh) => {
-    const km = Math.round(shoeKm(sh)), lim = shoeLimit(sh);
-    return shoeState(sh) === 'over'
-      ? `<a class="note bad" href="#zapatillas">Tus zapatillas «${esc(sh.name)}» llevan ${nf(km)} km y ya han pasado los ${nf(lim)}. Es buen momento para cambiarlas.</a>`
-      : `<a class="note warn" href="#zapatillas">Tus zapatillas «${esc(sh.name)}» llevan ${nf(km)} km de ${nf(lim)}. Ve pensando en cambiarlas.</a>`;
+  return [...data.gear.values()].filter((g) => !g.retired && gearState(g) !== 'ok').map((g) => {
+    const v = gearValue(g), lim = Number(g.limit);
+    const shoes = g.kind === 'shoes';
+    if (gearState(g) === 'over') {
+      return `<a class="note bad" href="#material">${shoes ? `Tus zapatillas «${esc(g.name)}» llevan ${esc(gearFmt(g, v))} y ya han pasado los ${nf(lim)} km. Es buen momento para cambiarlas.` : `«${esc(g.name)}» lleva ${esc(gearFmt(g, v))} y ha pasado el límite de ${nf(lim)} ${gearUnit(g)}. Revisa si toca cambio o mantenimiento.`}</a>`;
+    }
+    return `<a class="note warn" href="#material">${shoes ? `Tus zapatillas «${esc(g.name)}» llevan ${esc(gearFmt(g, v))} de ${nf(lim)}. Ve pensando en cambiarlas.` : `«${esc(g.name)}» lleva ${esc(gearFmt(g, v))} de ${nf(lim)} ${gearUnit(g)}. Se acerca al límite que pusiste.`}</a>`;
   }).join('');
 }
-function shoeCard(sh) {
-  const km = shoeKm(sh), lim = shoeLimit(sh), st = shoeState(sh);
-  const n = shoeSessions(sh.id).length;
-  const last = sessionsDesc().find((s) => s.shoeId === sh.id);
-  return `<button type="button" class="shoe ${sh.retired ? 'is-retired' : ''}" data-shoe="${esc(sh.id)}">
-    <span class="shoe-head"><span class="item-title">${esc(sh.name)}</span><span class="num shoe-km ${st}">${nf(km, 0)} / ${nf(lim)} km</span></span>
-    <span class="meter-bar shoe-bar ${st}"><i style="width:${Math.min(100, Math.round((km / lim) * 100))}%"></i></span>
-    <span class="item-sub">${esc((sh.sports || ['run']).map((k) => sp(k).label).join(', '))} · ${n} sesi${n === 1 ? 'ón' : 'ones'}${last ? ` · última: ${esc(shortDate(last.date))}` : ''}${sh.retired ? ' · retiradas' : st === 'over' ? ' · toca cambiarlas' : st === 'near' ? ` · quedan ${nf(Math.max(0, lim - km))} km` : ''}</span>
+function gearCard(g) {
+  const v = gearValue(g), lim = Number(g.limit) || 0, st = gearState(g);
+  const n = gearSessions(g.id).length;
+  const last = sessionsDesc().find((s) => Array.isArray(s.gearIds) && s.gearIds.includes(g.id));
+  return `<button type="button" class="shoe ${g.retired ? 'is-retired' : ''}" data-gear-id="${esc(g.id)}">
+    <span class="shoe-head"><span class="item-title">${icoName(gearKind(g).icon)} ${esc(g.name)}</span><span class="num shoe-km ${st}">${esc(gearFmt(g, v))}${lim ? ` / ${nf(lim)}` : ''}</span></span>
+    ${lim ? `<span class="meter-bar shoe-bar ${st}"><i style="width:${Math.min(100, Math.round((v / lim) * 100))}%"></i></span>` : ''}
+    <span class="item-sub">${esc(gearKind(g).label)} · ${esc((g.sports || []).map((k) => sp(k).label).join(', ') || 'sin deporte')} · ${n} sesi${n === 1 ? 'ón' : 'ones'}${last ? ` · última: ${esc(shortDate(last.date))}` : ''}${g.retired ? ' · retirado' : st === 'over' ? ' · ha pasado el límite' : st === 'near' ? ` · quedan ${nf(Math.max(0, lim - v), g.measure === 'km' ? 0 : 1)} ${gearUnit(g)}` : ''}</span>
   </button>`;
 }
-function viewShoes(app, banner) {
-  const all = [...data.shoes.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  const active = all.filter((sh) => !sh.retired), retired = all.filter((sh) => sh.retired);
+function viewGear(app, banner) {
+  const all = [...data.gear.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const active = all.filter((g) => !g.retired), retired = all.filter((g) => g.retired);
+  const groups = Object.keys(GEAR_KINDS).map((k) => [k, active.filter((g) => (GEAR_KINDS[g.kind] ? g.kind : 'other') === k)]).filter(([, l]) => l.length);
   app.innerHTML = `${banner}
-    <div class="top"><div><div class="eyebrow">Material</div><h1>Zapatillas</h1></div></div>
-    <p class="hint" style="margin:0">Elige las zapatillas al registrar una carrera y la app suma sus kilómetros. Te avisa a partir de ${nf(700 - SHOE_WARN_BEFORE)} km y al llegar a 700 (o al límite que pongas).</p>
-    <button class="btn primary block" id="add-shoe">+ Añadir zapatillas</button>
-    <section><h2>En uso</h2>${active.length ? `<div class="shoes">${active.map(shoeCard).join('')}</div>` : '<div class="empty"><p class="muted" style="margin:0">No tienes zapatillas dadas de alta.</p></div>'}</section>
-    ${retired.length ? `<section><h2>Retiradas</h2><div class="shoes">${retired.map(shoeCard).join('')}</div></section>` : ''}`;
-  $('#add-shoe', app).onclick = () => shoeEditor(null);
-  $$('[data-shoe]', app).forEach((b) => (b.onclick = () => shoeEditor(data.shoes.get(b.dataset.shoe))));
+    <div class="top"><div><div class="eyebrow">Ajustes</div><h1>Material</h1></div></div>
+    <p class="hint" style="margin:0">Elige el material al registrar una sesión y la app suma sus kilómetros u horas. Las zapatillas avisan a partir de 600 km y al llegar a 700; al resto le puedes poner tu propio límite.</p>
+    <button class="btn primary block" id="add-gear">+ Añadir material</button>
+    ${groups.length ? groups.map(([k, l]) => `<section><h2>${esc(GEAR_KINDS[k].label)}</h2><div class="shoes">${l.map(gearCard).join('')}</div></section>`).join('') : '<div class="empty"><p class="muted" style="margin:0">Aún no has dado de alta material. Añade tus zapatillas, tu bici o tu neopreno.</p></div>'}
+    ${retired.length ? `<section><h2>Retirado</h2><div class="shoes">${retired.map(gearCard).join('')}</div></section>` : ''}`;
+  $('#add-gear', app).onclick = () => gearEditor(null);
+  $$('[data-gear-id]', app).forEach((b) => (b.onclick = () => gearEditor(data.gear.get(b.dataset.gearId))));
 }
-function shoeEditor(sh) {
-  const isNew = !sh;
-  const f = sh ? clone(sh) : { id: uid(), name: '', sports: [SPORT_KEYS.includes('run') ? 'run' : SPORT_KEYS.find((k) => isDistMetric(metricOf(k))) || 'run'], startKm: 0, limitKm: 700, retired: false, createdAt: Date.now() };
-  const used = isNew ? 0 : shoeSessions(f.id).length;
-  const distSports = [...new Set([...SPORT_KEYS.filter((k) => isDistMetric(metricOf(k))), ...(f.sports || [])])];
+function gearEditor(g) {
+  const isNew = !g;
+  const kindDefaults = (kind) => {
+    const K = GEAR_KINDS[kind];
+    const sports = K.sports.filter((k) => SPORT_KEYS.includes(k));
+    return { measure: K.measure, limit: K.limit, sports: sports.length ? sports : SPORT_KEYS.slice(0, 1) };
+  };
+  const f = g ? clone(g) : { id: uid(), name: '', kind: 'shoes', ...kindDefaults('shoes'), startValue: 0, retired: false, createdAt: Date.now() };
+  const used = isNew ? 0 : gearSessions(f.id).length;
   const draw = (el) => {
-    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nuevas zapatillas' : 'Editar zapatillas'}</h2>
-      <div class="field"><label for="sh-name">Nombre</label><input id="sh-name" type="text" maxlength="60" value="${esc(f.name)}" placeholder="p. ej. Pegasus 41 rojas" autocomplete="off"></div>
-      <div class="field"><span class="lbl">Para qué deportes</span><div class="chips">${distSports.map((k) => `<button type="button" data-shs="${esc(k)}" aria-pressed="${(f.sports || []).includes(k)}">${esc(sp(k).label)}</button>`).join('')}</div></div>
+    const sportsList = [...new Set([...SPORT_KEYS.filter((k) => f.measure !== 'km' || isDistMetric(metricOf(k))), ...(f.sports || [])])];
+    const unit = f.measure === 'km' ? 'km' : 'horas';
+    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nuevo material' : 'Editar material'}</h2>
+      <div class="field"><span class="lbl">Tipo</span><div class="chips">${Object.entries(GEAR_KINDS).map(([k, K]) => `<button type="button" data-gkind="${k}" aria-pressed="${f.kind === k}">${esc(K.label)}</button>`).join('')}</div></div>
+      <div class="field"><label for="ge-name">Nombre</label><input id="ge-name" type="text" maxlength="60" value="${esc(f.name)}" placeholder="${f.kind === 'shoes' ? 'p. ej. Pegasus 41 rojas' : f.kind === 'bike' ? 'p. ej. Bici de carretera' : f.kind === 'wetsuit' ? 'p. ej. Neopreno 3 mm' : 'p. ej. Pala de pádel'}" autocomplete="off"></div>
+      <div class="field"><span class="lbl">Contar en</span><div class="seg">${[['km', 'Kilómetros'], ['hours', 'Horas']].map(([k, l]) => `<button type="button" data-gmeasure="${k}" aria-pressed="${f.measure === k}" ${used && f.measure !== k ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+        ${used ? '<span class="hint">No se puede cambiar porque ya tiene sesiones.</span>' : ''}</div>
+      <div class="field"><span class="lbl">Se usa en</span><div class="chips">${sportsList.map((k) => `<button type="button" data-gsport="${esc(k)}" aria-pressed="${(f.sports || []).includes(k)}">${esc(sp(k).label)}</button>`).join('')}</div></div>
       <div class="grid2">
-        <div class="field"><label for="sh-start">Km que ya tenían</label><input id="sh-start" inputmode="decimal" value="${esc(f.startKm || '')}" placeholder="0" autocomplete="off"></div>
-        <div class="field"><label for="sh-limit">Avisar al llegar a (km)</label><input id="sh-limit" inputmode="numeric" value="${esc(f.limitKm || 700)}" autocomplete="off"></div>
+        <div class="field"><label for="ge-start">${unit === 'km' ? 'Km' : 'Horas'} que ya tenía</label><input id="ge-start" inputmode="decimal" value="${esc(f.startValue || '')}" placeholder="0" autocomplete="off"></div>
+        <div class="field"><label for="ge-limit">Avisar al llegar a (${unit})</label><input id="ge-limit" inputmode="decimal" value="${esc(f.limit || '')}" placeholder="Sin límite" autocomplete="off"></div>
       </div>
-      ${isNew ? '' : `<p class="hint" style="margin:0">Llevan ${nf(shoeKm(f), 0)} km en ${used} sesi${used === 1 ? 'ón' : 'ones'} registradas con ellas.</p>
-        <button type="button" class="toggle" id="sh-ret" aria-pressed="${!!f.retired}">${f.retired ? ICO_CHECK : ''}Retiradas (ya no las uso)</button>`}
-      <button class="btn primary block" id="sh-save">${isNew ? 'Añadir zapatillas' : 'Guardar'}</button>
-      ${!isNew && !used ? '<button class="btn danger block" id="sh-del">Eliminar</button>' : ''}`;
-    const keep = () => { f.name = $('#sh-name', el).value; f.startKm = num($('#sh-start', el).value) || 0; f.limitKm = num($('#sh-limit', el).value) || 700; };
-    $$('[data-shs]', el).forEach((b) => (b.onclick = () => { keep(); const k = b.dataset.shs; f.sports = (f.sports || []).includes(k) ? f.sports.filter((x) => x !== k) : [...(f.sports || []), k]; draw(el); }));
-    $('#sh-ret', el)?.addEventListener('click', () => { keep(); f.retired = !f.retired; draw(el); });
-    $('#sh-save', el).onclick = async () => {
+      ${isNew ? '' : `<p class="hint" style="margin:0">Lleva ${esc(gearFmt(f, gearValue(f)))} en ${used} sesi${used === 1 ? 'ón' : 'ones'}.</p>
+        <button type="button" class="toggle" id="ge-ret" aria-pressed="${!!f.retired}">${f.retired ? ICO_CHECK : ''}Retirado (ya no lo uso)</button>`}
+      <button class="btn primary block" id="ge-save">${isNew ? 'Añadir' : 'Guardar'}</button>
+      ${!isNew && !used ? '<button class="btn danger block" id="ge-del">Eliminar</button>' : ''}`;
+    const keep = () => { f.name = $('#ge-name', el).value; f.startValue = num($('#ge-start', el).value) || 0; f.limit = num($('#ge-limit', el).value); };
+    $$('[data-gkind]', el).forEach((b) => (b.onclick = () => { keep(); f.kind = b.dataset.gkind; if (!used) Object.assign(f, kindDefaults(f.kind)); draw(el); }));
+    $$('[data-gmeasure]', el).forEach((b) => (b.onclick = () => { keep(); f.measure = b.dataset.gmeasure; if (f.measure === 'km') f.sports = (f.sports || []).filter((k) => isDistMetric(metricOf(k))); draw(el); }));
+    $$('[data-gsport]', el).forEach((b) => (b.onclick = () => { keep(); const k = b.dataset.gsport; f.sports = (f.sports || []).includes(k) ? f.sports.filter((x) => x !== k) : [...(f.sports || []), k]; draw(el); }));
+    $('#ge-ret', el)?.addEventListener('click', () => { keep(); f.retired = !f.retired; draw(el); });
+    $('#ge-save', el).onclick = async () => {
       keep();
-      if (!f.name.trim()) { toast('Ponles un nombre'); return; }
+      if (!f.name.trim()) { toast('Ponle un nombre'); return; }
       if (!f.sports?.length) { toast('Elige al menos un deporte'); return; }
-      await put('shoes', cleanShoe(f));
-      closeSheet(); toast(isNew ? 'Zapatillas añadidas' : 'Zapatillas guardadas'); render();
+      await put('gear', cleanGear(f));
+      closeSheet(); toast(isNew ? 'Material añadido' : 'Material guardado'); render();
     };
-    const delBtn = $('#sh-del', el);
+    const delBtn = $('#ge-del', el);
     if (delBtn) delBtn.onclick = async () => {
       if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para eliminar'; return; }
-      await del('shoes', f.id); closeSheet(); toast('Zapatillas eliminadas'); render();
+      await del('gear', f.id); closeSheet(); toast('Material eliminado'); render();
     };
   };
   openSheet('', draw);
 }
-function cleanShoe(sh) {
-  if (!sh || !String(sh.name || '').trim()) return null;
-  return { id: typeof sh.id === 'string' && /^[\w.~:@+-]+$/.test(sh.id) ? sh.id : uid(), name: String(sh.name).trim().slice(0, 60),
-    sports: (Array.isArray(sh.sports) ? sh.sports : ['run']).filter(validKey).slice(0, 10), startKm: Math.max(0, Number(sh.startKm) || 0),
-    limitKm: Math.max(1, Number(sh.limitKm) || 700), retired: !!sh.retired, createdAt: Number(sh.createdAt) || Date.now() };
+function cleanGear(g) {
+  if (!g || !String(g.name || '').trim()) return null;
+  return { id: typeof g.id === 'string' && /^[\w.~:@+-]+$/.test(g.id) ? g.id : uid(), name: String(g.name).trim().slice(0, 60),
+    kind: GEAR_KINDS[g.kind] ? g.kind : 'other', sports: (Array.isArray(g.sports) ? g.sports : []).filter(validKey).slice(0, 20),
+    measure: g.measure === 'km' ? 'km' : 'hours', startValue: Math.max(0, Number(g.startValue) || 0),
+    limit: Number(g.limit) > 0 ? Number(g.limit) : null, retired: !!g.retired, createdAt: Number(g.createdAt) || Date.now() };
 }
 
 // ===================== AJUSTES =====================
@@ -1748,7 +1802,7 @@ function daysSince(isoStr) {
   return Math.floor((fromISO(today()) - fromISO(isoStr.slice(0, 10))) / 86400000);
 }
 const BACKUP_EVERY_DAYS = 7; // en iPhone, Safari puede borrar los datos de una web; mejor copias frecuentes
-const hasAnyData = () => data.sessions.size + data.plan.size + data.races.size + data.shoes.size > 0;
+const hasAnyData = () => data.sessions.size + data.plan.size + data.races.size + data.gear.size > 0;
 function backupDue() {
   const ds = daysSince(settings.lastExport);
   return hasAnyData() && (ds == null || ds >= BACKUP_EVERY_DAYS);
@@ -1786,10 +1840,10 @@ function viewSettings(app, banner) {
       </div>`).join('')}</div>
       <button class="btn primary block" id="add-sport">+ Añadir deporte</button>
     </section>
-    <section><h2>Carreras y material</h2>
+    <section><h2>Carreras, eventos y material</h2>
       <div class="list">
         <a class="item" href="#carreras"><span class="tile c-ink">${ICO_FLAG}</span><span class="item-main"><span class="item-title">Carreras y eventos</span><span class="item-sub">${upcomingRaces().length ? `${upcomingRaces().length} próxima${upcomingRaces().length === 1 ? '' : 's'} · ${esc(countdownTxt(daysUntil(upcomingRaces()[0].date)).toLowerCase())}` : 'Apunta tus próximas carreras o eventos y tus objetivos'}</span></span>${ICO_R}</a>
-        <a class="item" href="#zapatillas"><span class="tile c-ink">${ICO_SHOE}</span><span class="item-main"><span class="item-title">Zapatillas</span><span class="item-sub">${(() => { const act = [...data.shoes.values()].filter((x) => !x.retired); const warn = act.filter((x) => shoeState(x) !== 'ok').length; return act.length ? `${act.length} en uso${warn ? ` · ${warn} cerca del límite` : ''}` : 'Cuenta los km de cada par y avisa a los 700'; })()}</span></span>${ICO_R}</a>
+        <a class="item" href="#material"><span class="tile c-ink">${ICO_GEAR}</span><span class="item-main"><span class="item-title">Material</span><span class="item-sub">${(() => { const act = [...data.gear.values()].filter((x) => !x.retired); const warn = act.filter((x) => gearState(x) !== 'ok').length; return act.length ? `${act.length} en uso${warn ? ` · ${warn} cerca del límite` : ''}` : 'Zapatillas, bici, neopreno… con sus km u horas'; })()}</span></span>${ICO_R}</a>
       </div>
     </section>
     <section><h2>Objetivo semanal</h2>
@@ -1871,7 +1925,7 @@ function sportEditor(def) {
       <div class="field"><span class="lbl">Icono</span><div class="icons">${ICON_NAMES.map((n) => `<button type="button" data-icon="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${icoName(n)}</button>`).join('')}</div></div>
       <div class="field"><span class="lbl">Color</span><div class="colors">${COLORS.map((c) => `<button type="button" data-color="${c}" aria-pressed="${f.color === c}" aria-label="${esc(COLOR_NAMES[c])}" style="--c:var(--col-${c})"></button>`).join('')}</div></div>
       <div class="field"><label for="se-types">Tipos de sesión</label><input id="se-types" type="text" value="${esc((f.types || []).join(', '))}" placeholder="Separados por comas: Partido, Entreno" autocomplete="off"></div>
-      <div class="field"><label for="se-gear">Material (opcional)</label><input id="se-gear" type="text" value="${esc((f.gear || []).join(', '))}" placeholder="Separado por comas: Neopreno, Aletas" autocomplete="off"></div>
+      <div class="field"><label for="se-gear">Accesorios (opcional)</label><input id="se-gear" type="text" value="${esc((f.gear || []).join(', '))}" placeholder="Separado por comas: Neopreno, Aletas" autocomplete="off"></div>
       <button class="btn primary block" id="se-save">${isNew ? 'Añadir deporte' : 'Guardar'}</button>
       ${isNew ? '' : `<button class="btn block" id="se-hide">${f.hidden ? 'Mostrar de nuevo' : 'Ocultar este deporte'}</button>`}
       ${!isNew && !hasSessions ? '<button class="btn danger block" id="se-del">Quitar de mis deportes</button>' : ''}`;

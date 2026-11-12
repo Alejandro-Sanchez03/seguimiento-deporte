@@ -365,3 +365,5 @@ a.note { display: block; text-decoration: none; color: var(--fg); }
 .switch[aria-checked="true"] i { left: 23px; }
 .wrow { gap: 10px; }
 @media (max-width: 360px) { .quick { grid-template-columns: repeat(2, 1fr); } }
+
+.shoe-head .item-title .ico { width: 18px; height: 18px; vertical-align: -3px; color: var(--muted); }
