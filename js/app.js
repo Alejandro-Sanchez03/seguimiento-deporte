@@ -200,7 +200,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.12-2'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.12-3'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -522,7 +522,7 @@ function wQuick() {
 function wRace() {
   const card = raceCountdown();
   if (card) return card.replace('<section>', '<section class="widget" data-w="race">');
-  return `<section class="widget" data-w="race"><div class="sec-head"><h2>Próxima carrera</h2></div>
+  return `<section class="widget" data-w="race"><div class="sec-head"><h2>Próxima carrera o evento</h2></div>
     <a class="empty compact" href="#carreras"><span>No tienes carreras ni eventos apuntados.</span><b>Añadir</b></a></section>`;
 }
 function wRecent() {
@@ -645,7 +645,7 @@ function viewWeek(app, banner) {
           ${ps === 'done' ? '<span class="badge done">Hecha</span>' : ps === 'missed' ? '<span class="badge missed">No hecha</span>' : ''}
         </button>`;
       }).join('')}
-      ${racesOn(d).map((r) => `<a class="pill race" href="#carreras">${ICO_FLAG}<span class="pill-main"><span class="pill-title">${esc(r.name)}</span><span class="pill-sub">Carrera${raceMeta(r) ? ' · ' + esc(raceMeta(r)) : ''}</span></span></a>`).join('')}
+      ${racesOn(d).map((r) => `<a class="pill race" href="#carreras">${ICO_FLAG}<span class="pill-main"><span class="pill-title">${esc(r.name)}</span><span class="pill-sub">Carrera o evento${raceMeta(r) ? ' · ' + esc(raceMeta(r)) : ''}</span></span></a>`).join('')}
       ${extra.map((s) => `<button class="pill extra s-${s.sport}" data-edit="${esc(s.id)}">${ico(s.sport)}<span class="pill-main"><span class="pill-title">${esc(sessionTitle(s))}</span><span class="pill-sub">Sin planificar · ${esc(summary(s))}</span></span><span class="badge done">Hecha</span></button>`).join('')}
       ${moving ? '' : `<button class="addbtn" data-add="${d}">+ Añadir sesión</button>`}
     </div>`;
@@ -1537,8 +1537,9 @@ function racePace(r, sec = r.targetSec) {
   return '';
 }
 function raceMeta(r) {
-  return [raceDist(r), r.targetSec ? `objetivo ${fmtDur(r.targetSec)}` : '', racePace(r) ? `a ${racePace(r)}` : ''].filter(Boolean).join(' · ');
+  return [raceDist(r), r.targetSec ? `objetivo ${fmtDur(r.targetSec)}` : '', racePace(r) ? `a ${racePace(r)}` : '', r.goal ? `objetivo: ${r.goal}` : ''].filter(Boolean).join(' · ');
 }
+const raceHasDistance = (sport) => !sport || isDistMetric(metricOf(sport));
 // Tarjeta de cuenta atrás de la próxima carrera (pantalla Hoy).
 function raceCountdown() {
   const r = upcomingRaces()[0];
@@ -1546,7 +1547,7 @@ function raceCountdown() {
   const n = daysUntil(r.date);
   const more = upcomingRaces().length - 1;
   return `<section>
-    <div class="sec-head"><h2>Próxima carrera</h2><a class="muted" href="#carreras">${more > 0 ? `Ver las ${more + 1}` : 'Carreras'}</a></div>
+    <div class="sec-head"><h2>Próxima carrera o evento</h2><a class="muted" href="#carreras">${more > 0 ? `Ver los ${more + 1}` : 'Ver todos'}</a></div>
     <a class="race-card ${r.sport ? 's-' + esc(r.sport) : ''} ${n === 0 ? 'is-today' : ''}" href="#carreras">
       <span class="race-count"><b class="num">${n === 0 ? '¡Hoy!' : n}</b>${n === 0 ? '' : `<span>${n === 1 ? 'día' : 'días'}</span>`}</span>
       <span class="race-info"><span class="race-name">${esc(r.name)}</span>
@@ -1562,64 +1563,70 @@ function raceCard(r) {
     <span class="race-flag">${r.sport ? ico(r.sport) : ICO_FLAG}</span>
     <span class="item-main"><span class="item-title">${esc(r.name)}</span>
       <span class="item-sub">${esc(shortDate(r.date))}${raceMeta(r) ? ' · ' + esc(raceMeta(r)) : ''}</span>
-      ${past && r.resultSec ? `<span class="item-sub">Resultado: <b class="num">${esc(fmtDur(r.resultSec))}</b>${r.targetSec ? (r.resultSec <= r.targetSec ? ' · objetivo cumplido' : ` · ${fmtDur(r.resultSec - r.targetSec)} sobre el objetivo`) : ''}</span>` : ''}</span>
-    ${past ? (r.resultSec ? '' : '<span class="badge pending">Sin resultado</span>') : `<span class="badge countdown num">${n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : `${n} días`}</span>`}
+      ${past && r.resultSec ? `<span class="item-sub">Resultado: <b class="num">${esc(fmtDur(r.resultSec))}</b>${r.targetSec ? (r.resultSec <= r.targetSec ? ' · objetivo cumplido' : ` · ${fmtDur(r.resultSec - r.targetSec)} sobre el objetivo`) : ''}</span>` : ''}
+      ${past && r.resultText ? `<span class="item-sub">Resultado: ${esc(r.resultText)}</span>` : ''}</span>
+    ${past ? (r.resultSec || r.resultText ? '' : '<span class="badge pending">Sin resultado</span>') : `<span class="badge countdown num">${n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : `${n} días`}</span>`}
   </button>`;
 }
 function viewRaces(app, banner) {
   const up = upcomingRaces(), past = pastRaces();
   app.innerHTML = `${banner}
-    <div class="top"><div><div class="eyebrow">Objetivos</div><h1>Carreras</h1></div></div>
-    <button class="btn primary block" id="add-race">+ Añadir carrera</button>
-    <section><h2>Próximas</h2>${up.length ? `<div class="list">${up.map(raceCard).join('')}</div>` : '<div class="empty"><p class="muted" style="margin:0">No tienes carreras apuntadas. Añade la próxima y verás la cuenta atrás en la pantalla Hoy.</p></div>'}</section>
+    <div class="top"><div><div class="eyebrow">Objetivos</div><h1>Carreras y eventos</h1></div></div>
+    <p class="hint" style="margin:0">Carreras, torneos, travesías, quedadas… de cualquier deporte. La próxima sale con cuenta atrás en la pantalla de inicio.</p>
+    <button class="btn primary block" id="add-race">+ Añadir carrera o evento</button>
+    <section><h2>Próximas</h2>${up.length ? `<div class="list">${up.map(raceCard).join('')}</div>` : '<div class="empty"><p class="muted" style="margin:0">No tienes nada apuntado. Añade tu próxima carrera o evento y verás la cuenta atrás en la pantalla de inicio.</p></div>'}</section>
     ${past.length ? `<section><h2>Pasadas</h2><div class="list">${past.map(raceCard).join('')}</div></section>` : ''}`;
   $('#add-race', app).onclick = () => raceEditor(null);
   $$('[data-race]', app).forEach((b) => (b.onclick = () => raceEditor(data.races.get(b.dataset.race))));
 }
 function raceEditor(r) {
   const isNew = !r;
-  const f = r ? clone(r) : { id: uid(), name: '', date: addDays(today(), 28), sport: SPORT_KEYS.find((k) => isDistMetric(metricOf(k))) || '', distanceM: null, targetSec: null, resultSec: null, notes: '' };
+  const f = r ? clone(r) : { id: uid(), name: '', date: addDays(today(), 28), sport: SPORT_KEYS[0] || '', distanceM: null, targetSec: null, resultSec: null, goal: '', resultText: '', notes: '' };
   const raceSports = [...new Set([...SPORT_KEYS, ...(f.sport ? [f.sport] : [])])];
   const chipsFor = (k) => (!k || distUnit(k) === 'km' ? [5, 10, 21.0975, 42.195] : [750, 1500, 1900, 3800]);
   const draw = (el) => {
     const unitM = f.sport && distUnit(f.sport) === 'm';
     const distVal = f.distanceM ? (unitM ? f.distanceM : +(f.distanceM / 1000).toFixed(3)) : '';
     const isPast = f.date && f.date <= today();
-    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nueva carrera' : 'Editar carrera'}</h2>
-      <div class="field"><label for="re-name">Nombre</label><input id="re-name" type="text" maxlength="80" value="${esc(f.name)}" placeholder="p. ej. Media maratón de Valencia" autocomplete="off"></div>
+    const withDist = raceHasDistance(f.sport);
+    el.innerHTML = `<div class="sheet-grip"></div><h2>${isNew ? 'Nueva carrera o evento' : 'Editar'}</h2>
+      <div class="field"><label for="re-name">Nombre</label><input id="re-name" type="text" maxlength="80" value="${esc(f.name)}" placeholder="p. ej. Media maratón de Valencia o Torneo de pádel" autocomplete="off"></div>
       <div class="field"><label for="re-date">Fecha</label><input id="re-date" type="date" value="${esc(f.date)}"></div>
       <div class="field"><span class="lbl">Deporte</span><div class="chips">${raceSports.map((k) => `<button type="button" data-rs="${esc(k)}" aria-pressed="${f.sport === k}">${esc(sp(k).label)}</button>`).join('')}<button type="button" data-rs="" aria-pressed="${!f.sport}">Varios deportes</button></div></div>
-      <div class="field"><label for="re-dist">Distancia (${unitM ? 'm' : 'km'})</label><input id="re-dist" inputmode="decimal" value="${esc(distVal)}" placeholder="0" autocomplete="off">
-        <div class="chips">${chipsFor(f.sport).map((v) => `<button type="button" data-rdist="${v}">${v === 21.0975 ? 'Media' : v === 42.195 ? 'Maratón' : nf(v, 1) + (unitM ? ' m' : ' km')}</button>`).join('')}</div></div>
-      <div class="field"><label for="re-target">Marca objetivo</label><input id="re-target" inputmode="numeric" value="${esc(fmtDur(f.targetSec))}" placeholder="1:39:00" autocomplete="off"><span class="hint" id="re-pace">${racePace(f) ? `Ritmo necesario: ${esc(racePace(f))}` : 'Escribe 13900 para 1:39:00'}</span></div>
-      ${isPast ? `<div class="field"><label for="re-result">Resultado</label><input id="re-result" inputmode="numeric" value="${esc(fmtDur(f.resultSec))}" placeholder="Tu tiempo final" autocomplete="off"></div>` : ''}
+      ${withDist ? `<div class="field"><label for="re-dist">Distancia (${unitM ? 'm' : 'km'}, opcional)</label><input id="re-dist" inputmode="decimal" value="${esc(distVal)}" placeholder="0" autocomplete="off">
+        <div class="chips">${chipsFor(f.sport).map((v) => `<button type="button" data-rdist="${v}">${v === 21.0975 ? 'Media' : v === 42.195 ? 'Maratón' : nf(v, 1) + (unitM ? ' m' : ' km')}</button>`).join('')}</div></div>` : ''}
+      <div class="field"><label for="re-target">Marca objetivo (tiempo, opcional)</label><input id="re-target" inputmode="numeric" value="${esc(fmtDur(f.targetSec))}" placeholder="1:39:00" autocomplete="off"><span class="hint" id="re-pace">${racePace(f) ? `Ritmo necesario: ${esc(racePace(f))}` : 'Escribe 13900 para 1:39:00'}</span></div>
+      <div class="field"><label for="re-goal">Objetivo en palabras (opcional)</label><input id="re-goal" type="text" maxlength="80" value="${esc(f.goal || '')}" placeholder="p. ej. Llegar a semifinales o terminar sin parar" autocomplete="off"></div>
+      ${isPast ? `<div class="grid2"><div class="field"><label for="re-result">Tiempo final</label><input id="re-result" inputmode="numeric" value="${esc(fmtDur(f.resultSec))}" placeholder="1:37:12" autocomplete="off"></div>
+        <div class="field"><label for="re-rtext">Resultado</label><input id="re-rtext" type="text" maxlength="80" value="${esc(f.resultText || '')}" placeholder="p. ej. Puesto 23" autocomplete="off"></div></div>` : ''}
       <div class="field"><label for="re-notes">Notas</label><textarea id="re-notes" placeholder="Dorsal, recogida, logística…">${esc(f.notes)}</textarea></div>
-      <button class="btn primary block" id="re-save">${isNew ? 'Añadir carrera' : 'Guardar'}</button>
-      ${isNew ? '' : '<button class="btn danger block" id="re-del">Eliminar carrera</button>'}`;
+      <button class="btn primary block" id="re-save">${isNew ? 'Añadir' : 'Guardar'}</button>
+      ${isNew ? '' : '<button class="btn danger block" id="re-del">Eliminar</button>'}`;
     const keep = () => {
       f.name = $('#re-name', el).value; f.date = $('#re-date', el).value; f.notes = $('#re-notes', el).value;
-      const v = num($('#re-dist', el).value); f.distanceM = v == null ? null : unitM ? Math.round(v) : Math.round(v * 1000);
+      if ($('#re-dist', el)) { const v = num($('#re-dist', el).value); f.distanceM = v == null ? null : unitM ? Math.round(v) : Math.round(v * 1000); } else f.distanceM = null;
       f.targetSec = parseDuration($('#re-target', el).value);
-      if ($('#re-result', el)) f.resultSec = parseDuration($('#re-result', el).value);
+      f.goal = $('#re-goal', el).value;
+      if ($('#re-result', el)) { f.resultSec = parseDuration($('#re-result', el).value); f.resultText = $('#re-rtext', el).value; }
     };
     $$('[data-rs]', el).forEach((b) => (b.onclick = () => { keep(); const wasM = unitM; f.sport = b.dataset.rs; if (wasM !== (f.sport && distUnit(f.sport) === 'm')) f.distanceM = null; draw(el); }));
     $$('[data-rdist]', el).forEach((b) => (b.onclick = () => { keep(); const v = Number(b.dataset.rdist); f.distanceM = unitM ? v : Math.round(v * 1000); draw(el); }));
     $('#re-date', el).addEventListener('change', () => { keep(); draw(el); });
     const paceHint = () => { keep(); $('#re-pace', el).textContent = racePace(f) ? `Ritmo necesario: ${racePace(f)}` : 'Escribe 13900 para 1:39:00'; };
     $('#re-target', el).addEventListener('input', paceHint);
-    $('#re-dist', el).addEventListener('input', paceHint);
+    $('#re-dist', el)?.addEventListener('input', paceHint);
     $('#re-target', el).addEventListener('blur', () => { if (f.targetSec) $('#re-target', el).value = fmtDur(f.targetSec); });
     $('#re-save', el).onclick = async () => {
       keep();
-      if (!f.name.trim()) { toast('Ponle nombre a la carrera'); return; }
+      if (!f.name.trim()) { toast('Ponle un nombre'); return; }
       if (!isISO(f.date)) { toast('Elige la fecha'); return; }
       await put('races', cleanRace(f));
-      closeSheet(); toast(isNew ? 'Carrera añadida' : 'Carrera guardada'); render();
+      closeSheet(); toast(isNew ? 'Añadido a tus carreras y eventos' : 'Guardado'); render();
     };
     const delBtn = $('#re-del', el);
     if (delBtn) delBtn.onclick = async () => {
       if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para eliminar'; return; }
-      await del('races', f.id); closeSheet(); toast('Carrera eliminada'); render();
+      await del('races', f.id); closeSheet(); toast('Eliminado'); render();
     };
   };
   openSheet('', draw);
@@ -1628,7 +1635,8 @@ function cleanRace(r) {
   if (!r || !isISO(r.date) || !String(r.name || '').trim()) return null;
   const n = (v) => (Number(v) > 0 ? Math.round(Number(v)) : null);
   return { id: typeof r.id === 'string' && /^[\w.~:@+-]+$/.test(r.id) ? r.id : uid(), name: String(r.name).trim().slice(0, 80), date: r.date,
-    sport: validKey(r.sport) ? r.sport : '', distanceM: n(r.distanceM), targetSec: n(r.targetSec), resultSec: n(r.resultSec), notes: String(r.notes || '').slice(0, 1000) };
+    sport: validKey(r.sport) ? r.sport : '', distanceM: n(r.distanceM), targetSec: n(r.targetSec), resultSec: n(r.resultSec),
+    goal: String(r.goal || '').trim().slice(0, 80), resultText: String(r.resultText || '').trim().slice(0, 80), notes: String(r.notes || '').slice(0, 1000) };
 }
 
 // ===================== ZAPATILLAS =====================
@@ -1780,7 +1788,7 @@ function viewSettings(app, banner) {
     </section>
     <section><h2>Carreras y material</h2>
       <div class="list">
-        <a class="item" href="#carreras"><span class="tile c-ink">${ICO_FLAG}</span><span class="item-main"><span class="item-title">Carreras</span><span class="item-sub">${upcomingRaces().length ? `${upcomingRaces().length} próxima${upcomingRaces().length === 1 ? '' : 's'} · ${esc(countdownTxt(daysUntil(upcomingRaces()[0].date)).toLowerCase())}` : 'Apunta tus próximas carreras y marcas objetivo'}</span></span>${ICO_R}</a>
+        <a class="item" href="#carreras"><span class="tile c-ink">${ICO_FLAG}</span><span class="item-main"><span class="item-title">Carreras y eventos</span><span class="item-sub">${upcomingRaces().length ? `${upcomingRaces().length} próxima${upcomingRaces().length === 1 ? '' : 's'} · ${esc(countdownTxt(daysUntil(upcomingRaces()[0].date)).toLowerCase())}` : 'Apunta tus próximas carreras o eventos y tus objetivos'}</span></span>${ICO_R}</a>
         <a class="item" href="#zapatillas"><span class="tile c-ink">${ICO_SHOE}</span><span class="item-main"><span class="item-title">Zapatillas</span><span class="item-sub">${(() => { const act = [...data.shoes.values()].filter((x) => !x.retired); const warn = act.filter((x) => shoeState(x) !== 'ok').length; return act.length ? `${act.length} en uso${warn ? ` · ${warn} cerca del límite` : ''}` : 'Cuenta los km de cada par y avisa a los 700'; })()}</span></span>${ICO_R}</a>
       </div>
     </section>
