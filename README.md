@@ -16,7 +16,9 @@ Tu app única de deporte: registro de entrenos, plan semanal, gimnasio, carreras
 
 ## Importar un plan de entrenamiento
 
-En **Semana → Importar plan** puedes meter un plan entero desde un Excel (.xlsx), un CSV o texto pegado. Antes de guardar se ve cómo queda cada día.
+En **Semana → Importar plan** puedes meter un plan entero desde un PDF, un Excel (.xlsx), un CSV o texto pegado. Antes de guardar se ve cómo queda cada día.
+
+El PDF tiene que tener texto (hecho con Word, Excel, Google Docs o la app del entrenador): un PDF escaneado o una foto no se puede leer.
 
 Una fila por sesión (dos sesiones el mismo día = dos filas). La primera fila es la cabecera:
 
@@ -52,7 +54,7 @@ El objeto guardado lleva un número de versión (`schema`). Cuando cambia la est
 index.html            Estructura y barra de pestañas
 css/app.css           Estilos (modo claro y oscuro)
 js/app.js             Toda la lógica de la app
-js/vendor/            SheetJS (lectura de Excel, licencia Apache 2.0)
+js/vendor/            SheetJS (Excel) y pdf.js (PDF), ambas con licencia Apache 2.0
 plantillas/           Plantilla para importar un plan
 sw.js                 Funcionamiento sin conexión
 manifest.webmanifest  Datos para instalarla como app

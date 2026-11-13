@@ -1,8 +1,8 @@
 // Permite abrir la app sin conexión. Siempre se pide primero la versión de la red
 // (sin usar la caché HTTP del navegador), así cada cambio publicado llega al momento.
 // Solo se usa la copia guardada cuando no hay conexión.
-const CACHE = 'entreno-v5';
-const ASSETS = ['./', './index.html', './css/app.css', './js/app.js', './js/vendor/xlsx.full.min.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'entreno-v6';
+const ASSETS = ['./', './index.html', './css/app.css', './js/app.js', './js/vendor/xlsx.full.min.js', './js/vendor/pdfjs/pdf.min.js', './js/vendor/pdfjs/pdf.worker.min.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
