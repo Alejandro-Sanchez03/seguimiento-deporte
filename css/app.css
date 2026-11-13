@@ -367,3 +367,12 @@ a.note { display: block; text-decoration: none; color: var(--fg); }
 @media (max-width: 360px) { .quick { grid-template-columns: repeat(2, 1fr); } }
 
 .shoe-head .item-title .ico { width: 18px; height: 18px; vertical-align: -3px; color: var(--muted); }
+
+/* Importar plan */
+.ipdays { display: flex; flex-direction: column; gap: 8px; }
+.ipday { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ipday-h { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; }
+.errs { margin: 6px 0 0; padding-left: 18px; }
+.seg.two { grid-template-columns: 1fr 1fr; }
+table.fmt { min-width: 0; }
+table.fmt td:first-child { white-space: nowrap; }

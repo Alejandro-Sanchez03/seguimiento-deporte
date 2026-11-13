@@ -201,7 +201,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.12-4'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.13-1'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -368,7 +368,7 @@ function routeFromHash() {
   if (r === 'historial') return 'progreso';
   if (r === 'datos') return 'ajustes';
   if (r === 'zapatillas') return 'material';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'material'].includes(r) ? r : 'hoy';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'material', 'importar-plan'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -401,7 +401,7 @@ function render(fromData = false) {
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
   const banner = unreadableNote ? '<div class="note bad">Había datos guardados que no se pudieron leer. Se han apartado sin borrarlos. Si echas algo en falta, importa tu última copia de seguridad.</div>' : '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, material: viewGear };
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, material: viewGear, 'importar-plan': viewImportPlan };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -687,6 +687,7 @@ function viewWeek(app, banner) {
     <section>
       <div class="eyebrow">Plan de varias semanas</div>
       <div class="row">
+        <button class="btn primary" id="import-plan">Importar plan (Excel, CSV o texto)</button>
         <button class="btn" id="copy-week">Copiar semana a las siguientes</button>
         <button class="btn danger" id="clear-week">Vaciar semana</button>
       </div>
@@ -699,6 +700,7 @@ function viewWeek(app, banner) {
   $$('[data-add]', app).forEach((b) => (b.onclick = () => planEditor({ date: b.dataset.add })));
   $$('[data-daymenu]', app).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); dayMenu(b.dataset.daymenu); }));
   $('#copy-week', app).onclick = copyWeekSheet;
+  $('#import-plan', app).onclick = () => { importDraft = null; go('importar-plan'); };
   $('#clear-week', app).onclick = clearWeekSheet;
   if (moving) {
     $$('.day', app).forEach((el) => {
@@ -1782,6 +1784,382 @@ function cleanGear(g) {
     kind: GEAR_KINDS[g.kind] ? g.kind : 'other', sports: (Array.isArray(g.sports) ? g.sports : []).filter(validKey).slice(0, 20),
     measure: g.measure === 'km' ? 'km' : 'hours', startValue: Math.max(0, Number(g.startValue) || 0),
     limit: Number(g.limit) > 0 ? Number(g.limit) : null, retired: !!g.retired, createdAt: Number(g.createdAt) || Date.now() };
+}
+
+// ===================== IMPORTAR PLAN =====================
+// Lee un plan de entrenamiento (Excel, CSV, texto pegado de una hoja de cálculo o texto libre)
+// y lo reparte por días como sesiones planificadas. Antes de guardar enseña una vista previa.
+const normTxt = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const DAY_WORDS = {
+  lunes: 0, lun: 0, l: 0, monday: 0, mon: 0,
+  martes: 1, mar: 1, m: 1, tuesday: 1, tue: 1,
+  miercoles: 2, mie: 2, mi: 2, x: 2, wednesday: 2, wed: 2,
+  jueves: 3, jue: 3, j: 3, thursday: 3, thu: 3,
+  viernes: 4, vie: 4, v: 4, friday: 4, fri: 4,
+  sabado: 5, sab: 5, s: 5, saturday: 5, sat: 5,
+  domingo: 6, dom: 6, d: 6, sunday: 6, sun: 6,
+};
+const SPORT_WORDS = {
+  run: ['carrera', 'correr', 'running', 'run', 'rodaje', 'trote', 'footing', 'carrera a pie'],
+  swim: ['natacion', 'nadar', 'piscina', 'swim', 'swimming'],
+  bike: ['ciclismo', 'bici', 'bicicleta', 'rodillo', 'bike', 'mtb', 'btt', 'spinning', 'cycling', 'ciclo indoor'],
+  strength: ['fuerza', 'gym', 'gimnasio', 'pesas', 'musculacion', 'strength', 'gimnasio fuerza'],
+  hike: ['senderismo', 'trail', 'montana', 'caminar', 'andar', 'marcha', 'senderismo / trail'],
+  padel: ['padel'], tennis: ['tenis', 'tennis'], football: ['futbol', 'football', 'futbito'], basket: ['baloncesto', 'basket'],
+  climb: ['escalada', 'rocodromo', 'boulder'], yoga: ['yoga', 'movilidad', 'estiramientos', 'pilates', 'yoga / movilidad'],
+  row: ['remo', 'remoergometro', 'rowing'], owswim: ['aguas abiertas', 'open water'], ski: ['esqui', 'ski'], skate: ['patinaje', 'patines'],
+  hiit: ['crossfit', 'hiit', 'wod', 'crossfit / hiit'], box: ['boxeo', 'artes marciales', 'kickboxing', 'judo', 'karate', 'boxeo / artes marciales'],
+  cardio: ['eliptica', 'cardio', 'elíptica / cardio'],
+};
+const REST_WORDS = ['descanso', 'libre', 'off', 'rest', 'descanso total', 'descanso activo', '-', '—'];
+const COL_ALIASES = {
+  date: ['fecha', 'date', 'dia del mes'],
+  week: ['semana', 'sem', 'week', 'n semana', 'no semana', 'num semana'],
+  day: ['dia', 'dia de la semana', 'day', 'weekday'],
+  sport: ['deporte', 'sport', 'actividad', 'disciplina', 'modalidad'],
+  type: ['tipo', 'type', 'tipo de sesion'],
+  desc: ['descripcion', 'sesion', 'entreno', 'entrenamiento', 'detalle', 'workout', 'que hacer', 'contenido'],
+  extra: ['duracion', 'tiempo', 'minutos', 'notas', 'nota', 'observaciones', 'comentarios', 'intensidad', 'zona'],
+};
+
+// Deporte a partir de un texto: tus deportes (nombre o clave), sinónimos y la lista de deportes de la app.
+function matchSport(text) {
+  const n = normTxt(text);
+  if (!n) return null;
+  const all = [...settings.sports, ...PRESETS.filter((p) => !settings.sports.some((x) => x.key === p.key))];
+  for (const d of all) {
+    const names = [d.key, d.label, ...String(d.label).split('/')].map(normTxt);
+    if (names.includes(n)) return d.key;
+  }
+  for (const [k, words] of Object.entries(SPORT_WORDS)) if (words.map(normTxt).includes(n)) return k;
+  return null;
+}
+// Para texto libre: el deporte al principio de la frase (hasta 3 palabras).
+function sportPrefix(text) {
+  const words = String(text).trim().split(/\s+/);
+  for (let n = Math.min(3, words.length); n >= 1; n--) {
+    const head = words.slice(0, n).join(' ').replace(/[:,.\-–]+$/, '');
+    const key = matchSport(head);
+    if (key) return { key, rest: words.slice(n).join(' ').replace(/^[\s:,.\-–]+/, '') };
+  }
+  return null;
+}
+const isRest = (t) => REST_WORDS.includes(normTxt(t));
+
+// Fecha en cualquier formato habitual. Devuelve 'YYYY-MM-DD' o null.
+function parseDateCell(v) {
+  const t = String(v ?? '').trim();
+  if (!t) return null;
+  let m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(t);
+  if (m) return validDate(+m[1], +m[2], +m[3]);
+  m = /(^|\s)(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?(\s|$)/.exec(t);
+  if (m) {
+    let y = m[4] ? +m[4] : null;
+    if (y != null && y < 100) y += 2000;
+    if (y == null) {
+      // Sin año: el más cercano a hoy (un plan rara vez empieza más de 2 meses atrás).
+      y = fromISO(today()).getFullYear();
+      const cand = validDate(y, +m[3], +m[2]);
+      if (cand && cand < addDays(today(), -60)) y += 1;
+    }
+    return validDate(y, +m[3], +m[2]);
+  }
+  if (/^\d{5}$/.test(t)) { // número de serie de Excel
+    const d = new Date(1899, 11, 30); d.setDate(d.getDate() + Number(t)); return iso(d);
+  }
+  return null;
+}
+function validDate(y, mo, d) {
+  if (!(y > 1900 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31)) return null;
+  const dt = new Date(y, mo - 1, d);
+  return dt.getMonth() === mo - 1 ? iso(dt) : null;
+}
+function parseDayCell(v) {
+  const n = normTxt(v).replace(/[.:]$/, '');
+  if (n in DAY_WORDS) return DAY_WORDS[n];
+  const first = n.split(' ')[0];
+  if (first.length > 1 && first in DAY_WORDS) return DAY_WORDS[first];
+  if (/^[1-7]$/.test(n)) return Number(n) - 1;
+  return null;
+}
+function parseWeekCell(v) {
+  const m = /(\d+)/.exec(String(v ?? ''));
+  return m ? Number(m[1]) : null;
+}
+
+// Separador: tabulador (copiado de Excel/Sheets), punto y coma (CSV de Excel en español) o coma.
+function splitRows(text) {
+  text = String(text).replace(/^﻿/, '');
+  const first = text.split(/\r?\n/).find((l) => l.trim()) || '';
+  const counts = { '\t': first.split('\t').length, ';': first.split(';').length, ',': first.split(',').length };
+  const sep = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const delim = sep[1] > 1 ? sep[0] : null;
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === '') q = true;
+    else if (delim && ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return { rows: rows.map((r) => r.map((c) => c.trim())).filter((r) => r.some((c) => c !== '')), delim };
+}
+
+// Columnas de la tabla a partir de la cabecera.
+function mapHeader(row) {
+  const cols = {};
+  row.forEach((h, i) => {
+    const n = normTxt(h).replace(/[º°#.]/g, '').trim();
+    for (const [k, aliases] of Object.entries(COL_ALIASES)) {
+      if (k === 'extra') { if (aliases.includes(n)) (cols.extra ||= []).push(i); continue; }
+      if (cols[k] == null && aliases.includes(n)) cols[k] = i;
+    }
+  });
+  return cols;
+}
+
+// Convierte filas de una tabla en entradas del plan.
+function entriesFromTable(rows) {
+  const cols = mapHeader(rows[0]);
+  const entries = [], errors = [];
+  let lastWeek = null, lastDate = null, lastDay = null;
+  rows.slice(1).forEach((r, i) => {
+    const line = i + 2;
+    const cell = (k) => (cols[k] != null ? r[cols[k]] || '' : '');
+    let date = null, week = null, dow = null;
+    if (cols.date != null && cell('date')) { date = parseDateCell(cell('date')); if (!date) dow = parseDayCell(cell('date')); }
+    if (cols.week != null && cell('week')) week = parseWeekCell(cell('week'));
+    if (cols.day != null && cell('day')) {
+      const asDate = parseDateCell(cell('day'));
+      if (asDate && !date) date = asDate; else dow = parseDayCell(cell('day'));
+    }
+    // Celdas combinadas o vacías: se repite el día o la semana de la fila anterior.
+    if (!date && dow == null && cell('date') === '' && cell('day') === '') { date = lastDate; dow = lastDay; }
+    if (week == null && cols.week != null) week = lastWeek;
+    const sportRaw = cell('sport'), type = cell('type');
+    let desc = cell('desc');
+    const extra = (cols.extra || []).map((j) => (r[j] || '').trim()).filter(Boolean);
+    if (extra.length) desc = [desc, ...extra].filter(Boolean).join(' · ');
+    if (!sportRaw && !desc && !type) return;
+    if (!date && dow == null) { errors.push({ line, msg: `no tiene fecha ni día de la semana válidos («${cell('date') || cell('day') || r.join(' ')}»)` }); return; }
+    lastDate = date; lastDay = dow; lastWeek = week;
+    if (isRest(sportRaw) || (!sportRaw && isRest(desc))) { entries.push({ line, date, week, dow, rest: true }); return; }
+    let sport = matchSport(sportRaw), d = desc;
+    if (!sportRaw) { const pre = sportPrefix(desc); if (pre) { sport = pre.key; d = pre.rest || desc; } }
+    entries.push({ line, date, week, dow, sport, sportRaw: sportRaw || '', type, desc: d });
+  });
+  return { entries, errors };
+}
+
+// Texto libre: «Semana 2», «Lunes: Carrera 6x400 a 4:15 + Fuerza pierna», «17/11 - Natación 2000 m».
+function entriesFromText(text) {
+  const entries = [], errors = [];
+  let week = null, date = null, dow = null;
+  String(text).split(/\r?\n/).forEach((raw, i) => {
+    const line = i + 1;
+    let l = raw.trim();
+    if (!l) return;
+    const wk = /^semana\s*(\d+)\b[\s:.\-–]*(.*)$/i.exec(normTxt(l));
+    if (wk) { week = Number(wk[1]); date = null; dow = null; if (!wk[2]) return; l = l.replace(/^semana\s*\d+[\s:.\-–]*/i, ''); }
+    let body = l;
+    const bullet = /^[-•*·]\s*/.test(l);
+    if (bullet) body = l.replace(/^[-•*·]\s*/, '');
+    else {
+      const m = /^(.{1,40}?)\s*[:–]\s*(.*)$/.exec(l) || /^(\S+(?:\s+\d{1,2}[/.\-]\d{1,2}(?:[/.\-]\d{2,4})?)?)\s+-\s+(.*)$/.exec(l);
+      const head = m ? m[1] : l.split(/\s+/)[0];
+      const pd = parseDateCell(head), pw = parseDayCell(head);
+      if (pd || pw != null) { date = pd; dow = pd ? null : pw; body = m ? m[2] : l.slice(head.length); }
+      else if (date == null && dow == null) { errors.push({ line, msg: `no empieza por un día o una fecha («${l.slice(0, 40)}»)` }); return; }
+    }
+    for (const part of body.split(/\s\+\s|;/).map((x) => x.trim()).filter(Boolean)) {
+      if (isRest(part)) { entries.push({ line, date, week, dow, rest: true }); continue; }
+      const pre = sportPrefix(part);
+      entries.push({ line, date, week, dow, sport: pre ? pre.key : null, sportRaw: pre ? '' : part.split(/\s+/)[0], type: '', desc: pre ? pre.rest : part });
+    }
+  });
+  return { entries, errors };
+}
+
+// Analiza lo importado: decide formato, resuelve fechas y deportes.
+function analyzePlan(input, startMon) {
+  let res;
+  if (Array.isArray(input)) res = entriesFromTable(input);
+  else {
+    const { rows } = splitRows(input);
+    const cols = rows.length ? mapHeader(rows[0]) : {};
+    const isTable = rows.length > 1 && (cols.sport != null || cols.desc != null) && (cols.date != null || cols.day != null);
+    res = isTable ? entriesFromTable(rows) : entriesFromText(input);
+  }
+  const relative = res.entries.some((e) => !e.date);
+  const minWeek = Math.min(...res.entries.filter((e) => !e.date && e.week != null).map((e) => e.week), Infinity);
+  const baseWeek = Number.isFinite(minWeek) ? minWeek : 1;
+  const newSports = new Map();
+  const items = [];
+  for (const e of res.entries) {
+    const date = e.date || addDays(startMon, ((e.week ?? baseWeek) - baseWeek) * 7 + e.dow);
+    if (e.rest) { items.push({ date, rest: true, line: e.line }); continue; }
+    let sport = e.sport;
+    if (!sport) {
+      const name = (e.sportRaw || '').trim();
+      if (!name) { res.errors.push({ line: e.line, msg: 'no indica el deporte' }); continue; }
+      const key = 'c' + normTxt(name).replace(/[^a-z0-9]/g, '').slice(0, 20);
+      if (!newSports.has(key)) newSports.set(key, cap(name.slice(0, 40)));
+      sport = key;
+    }
+    let type = e.type || '';
+    let desc = (e.desc || '').trim();
+    // Si la descripción empieza por un tipo del deporte, se toma como tipo. Solo se quita del texto
+    // cuando lo que sigue son cifras («Series 6x400» → Series · «6x400»); «Pierna completa» se queda igual.
+    const types = (sp(sport).types || []);
+    if (!type) {
+      const t = types.find((x) => normTxt(desc).startsWith(normTxt(x) + ' ') || normTxt(desc) === normTxt(x));
+      if (t) {
+        type = t;
+        const rest = desc.slice(t.length).replace(/^[\s:,.\-–]+/, '');
+        if (!rest || /^\d/.test(rest)) desc = rest;
+      }
+    }
+    else { const t = types.find((x) => normTxt(x) === normTxt(type)); if (t) type = t; }
+    items.push({ date, sport, type, desc: desc.slice(0, 120), line: e.line });
+  }
+  items.sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
+  const dates = items.map((x) => x.date);
+  return { items, errors: res.errors.sort((a, b) => a.line - b.line), relative, newSports, from: dates[0], to: dates[dates.length - 1] };
+}
+
+const PLAN_TEMPLATE = [
+  'Semana;Día;Deporte;Tipo;Descripción',
+  '1;Lunes;Carrera;Rodaje suave;45 min Z2',
+  '1;Martes;Fuerza;Pierna;Pierna completa',
+  '1;Miércoles;Natación;Series;10x100 a 1:45',
+  '1;Jueves;Carrera;Series;6x400 a 4:15',
+  '1;Viernes;Descanso;;',
+  '1;Sábado;Ciclismo;Largo;90 km Z2',
+  '1;Domingo;Carrera;Largo;16 km suave',
+  '2;Lunes;Pádel;Partido;Partido con el club',
+  '2;Martes;Carrera;Rodaje suave;50 min Z2',
+  '2;Martes;Fuerza;Torso;Torso y core',
+].join('\n');
+
+let importDraft = null; // { source, name, rows|text, startMon, mode }
+function viewImportPlan(app, banner) {
+  const st = importDraft;
+  if (!st) {
+    app.innerHTML = `${banner}
+      <div class="top"><div><div class="eyebrow">Semana</div><h1>Importar plan</h1></div></div>
+      <p class="muted" style="margin:0">Mete de golpe tu plan de entrenamiento: cada sesión se coloca en su día. Antes de guardar verás cómo queda.</p>
+      <section class="dz"><h2>Desde un archivo</h2>
+        <label class="btn primary block" for="ip-file">Elegir Excel o CSV</label>
+        <input id="ip-file" type="file" accept=".xlsx,.xls,.csv,.txt,.tsv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <button class="btn block" id="ip-tpl">Descargar plantilla de ejemplo</button>
+      </section>
+      <section class="dz"><h2>O pega el plan</h2>
+        <textarea id="ip-text" class="dump" placeholder="Copia las celdas desde Excel o Google Sheets, o escribe:&#10;Semana 1&#10;Lunes: Carrera 45 min suave&#10;Martes: Fuerza pierna + Natación 2000 m&#10;Miércoles: Descanso"></textarea>
+        <button class="btn block" id="ip-go">Ver cómo queda</button>
+      </section>
+      <section><h2>Cómo tiene que estar</h2>
+        <p class="muted" style="margin:0">Una fila por sesión. Si un día tiene dos sesiones, pon dos filas con el mismo día. Columnas (la primera fila es la cabecera, el orden da igual):</p>
+        <div class="tablewrap"><table class="fmt"><thead><tr><th>Columna</th><th>Qué poner</th></tr></thead><tbody>
+          <tr><td><b>Fecha</b></td><td>17/11/2026 o 2026-11-17. O, en su lugar, <b>Semana</b> (1, 2, 3…) y <b>Día</b> (Lunes… Domingo) y eliges al importar qué lunes empieza la semana 1.</td></tr>
+          <tr><td><b>Deporte</b></td><td>El nombre de tu deporte: Carrera, Natación, Ciclismo, Fuerza, Pádel… También vale «correr», «bici», «gym». «Descanso» marca el día libre.</td></tr>
+          <tr><td>Tipo</td><td>Opcional: Rodaje suave, Series, Largo, Pierna…</td></tr>
+          <tr><td><b>Descripción</b></td><td>Lo que tienes que hacer: «6x400 a 4:15», «Pierna completa».</td></tr>
+          <tr><td>Duración / Notas</td><td>Opcional; se añade al final de la descripción.</td></tr>
+        </tbody></table></div>
+      </section>`;
+    $('#ip-tpl', app).onclick = () => downloadBlob(new Blob(['﻿' + PLAN_TEMPLATE], { type: 'text/csv' }), 'plantilla-plan.csv', 'template');
+    $('#ip-go', app).onclick = () => {
+      const text = $('#ip-text', app).value;
+      if (!text.trim()) { toast('Pega el plan o elige un archivo'); return; }
+      importDraft = { source: 'texto pegado', text, startMon: defaultStartMon(), mode: 'add' };
+      render();
+    };
+    $('#ip-file', app).addEventListener('change', async (e) => {
+      const f = e.target.files?.[0]; e.target.value = '';
+      if (!f) return;
+      try {
+        if (/\.xlsx?$/i.test(f.name)) {
+          const rows = await readExcel(f);
+          importDraft = { source: f.name, rows, startMon: defaultStartMon(), mode: 'add' };
+        } else {
+          importDraft = { source: f.name, text: await f.text(), startMon: defaultStartMon(), mode: 'add' };
+        }
+        render();
+      } catch (err) {
+        toast(err?.message === 'xlsx' ? 'No se pudo abrir el Excel. Prueba de nuevo con conexión o guárdalo como CSV.' : 'No se pudo leer el archivo. Comprueba que es un Excel o un CSV.');
+      }
+    });
+    return;
+  }
+
+  const r = analyzePlan(st.rows || st.text, st.startMon);
+  const byDate = new Map();
+  for (const it of r.items) { if (!byDate.has(it.date)) byDate.set(it.date, []); byDate.get(it.date).push(it); }
+  const sessions = r.items.filter((x) => !x.rest);
+  const existing = r.from ? [...data.plan.values()].filter((p) => p.date >= r.from && p.date <= r.to && planState(p) !== 'done') : [];
+  const weeks = r.from ? Math.floor((fromISO(r.to) - fromISO(mondayOf(r.from))) / (7 * 864e5)) + 1 : 0;
+  app.innerHTML = `${banner}
+    <div class="top"><div><div class="eyebrow">Importar plan · ${esc(st.source)}</div><h1>Revisa el plan</h1></div></div>
+    ${sessions.length ? `<div class="note okay">${sessions.length} sesion${sessions.length === 1 ? '' : 'es'} en ${weeks} semana${weeks === 1 ? '' : 's'}, del ${esc(shortDate(r.from))} al ${esc(shortDate(r.to))}.</div>` : '<div class="note bad">No he encontrado sesiones. Revisa el formato más abajo o vuelve atrás.</div>'}
+    ${r.relative ? `<div class="field"><label for="ip-start">La semana 1 empieza el lunes</label><input id="ip-start" type="date" value="${esc(st.startMon)}"><span class="hint">Tu plan usa semanas y días; elige en qué semana empieza.</span></div>` : ''}
+    ${r.newSports.size ? `<div class="note warn">Se añadirá${r.newSports.size === 1 ? '' : 'n'} a tus deportes: ${esc([...r.newSports.values()].join(', '))}. Si es un error de escritura, corrígelo en el archivo.</div>` : ''}
+    ${r.errors.length ? `<div class="note bad"><b>${r.errors.length} fila${r.errors.length === 1 ? '' : 's'} no se importará${r.errors.length === 1 ? '' : 'n'}:</b><ul class="errs">${r.errors.slice(0, 12).map((e) => `<li>Fila ${e.line}: ${esc(e.msg)}</li>`).join('')}${r.errors.length > 12 ? `<li>y ${r.errors.length - 12} más</li>` : ''}</ul></div>` : ''}
+    ${existing.length ? `<div class="field"><span class="lbl">Ya tienes ${existing.length} sesión${existing.length === 1 ? '' : 'es'} planificada${existing.length === 1 ? '' : 's'} en esas fechas</span>
+      <div class="seg two"><button type="button" data-ipmode="add" aria-pressed="${st.mode === 'add'}">Añadir a lo que hay</button><button type="button" data-ipmode="replace" aria-pressed="${st.mode === 'replace'}">Sustituirlas</button></div>
+      <span class="hint">Las sesiones ya hechas no se tocan nunca.</span></div>` : ''}
+    <div class="ipdays">${[...byDate].map(([d, list]) => `<div class="ipday"><div class="ipday-h">${esc(cap(fromISO(d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })))}</div>
+      ${list.map((it) => it.rest ? '<div class="pill-sub">Descanso</div>' : `<div class="pill s-${esc(it.sport)}">${r.newSports.has(it.sport) ? ICO_FLAG : ico(it.sport)}<span class="pill-main"><span class="pill-title">${esc(it.desc || it.type || (r.newSports.get(it.sport) || sp(it.sport).label))}</span><span class="pill-sub">${esc(r.newSports.get(it.sport) || sp(it.sport).label)}${it.type ? ' · ' + esc(it.type) : ''}</span></span></div>`).join('')}</div>`).join('')}</div>
+    <div class="savebar">
+      <button class="btn" id="ip-back">Atrás</button>
+      <button class="btn primary" id="ip-save" ${sessions.length ? '' : 'disabled'}>Importar ${sessions.length} sesion${sessions.length === 1 ? '' : 'es'}</button>
+    </div>`;
+  $('#ip-start', app)?.addEventListener('change', (e) => { if (isISO(e.target.value)) { st.startMon = mondayOf(e.target.value); render(); } });
+  $$('[data-ipmode]', app).forEach((b) => (b.onclick = () => { st.mode = b.dataset.ipmode; render(); }));
+  $('#ip-back', app).onclick = () => { importDraft = null; render(); };
+  $('#ip-save', app).onclick = async () => {
+    for (const [key, label] of r.newSports) if (!settings.sports.some((x) => x.key === key)) settings.sports.push({ key, label, icon: 'bolt', color: COLORS[settings.sports.length % COLORS.length], metric: 'time', types: [] });
+    for (const it of sessions) {
+      const def = settings.sports.find((x) => x.key === it.sport);
+      if (def) def.hidden = false; else ensureSport(it.sport);
+    }
+    saveSettings();
+    if (st.mode === 'replace') for (const p of existing) data.plan.delete(p.id);
+    const base = Date.now();
+    sessions.forEach((it, i) => data.plan.set(`imp${base.toString(36)}${i}`, { id: `imp${base.toString(36)}${i}`, date: it.date, sport: it.sport, type: it.type || '', desc: it.desc || '', order: base + i, sessionId: null }));
+    saveLocal();
+    const first = r.from;
+    importDraft = null;
+    weekMon = mondayOf(first);
+    toast(`Plan importado: ${sessions.length} sesiones`);
+    go('semana');
+  };
+}
+function defaultStartMon() {
+  const t = today(), mon = mondayOf(t);
+  return t === mon ? mon : addDays(mon, 7);
+}
+// Excel: la librería se carga solo cuando eliges un archivo de Excel.
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = 'js/vendor/xlsx.full.min.js'; // SheetJS 0.18.5 (Apache 2.0), incluida en la app
+    sc.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error('xlsx')));
+    sc.onerror = () => reject(new Error('xlsx'));
+    document.head.appendChild(sc);
+  });
+}
+async function readExcel(file) {
+  const XLSX = await loadXLSX();
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  return rows.map((r) => r.map((c) => {
+    if (c instanceof Date) { const d = new Date(c.getTime() + 12 * 3600e3); return iso(d); }
+    return String(c ?? '').trim();
+  })).filter((r) => r.some((c) => c !== ''));
 }
 
 // ===================== AJUSTES =====================

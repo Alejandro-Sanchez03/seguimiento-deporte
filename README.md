@@ -14,6 +14,25 @@ Tu app única de deporte: registro de entrenos, plan semanal, gimnasio, carreras
 - **Material:** zapatillas, bici, neopreno u otro; se elige al registrar y suma km u horas. Zapatillas: aviso a partir de 600 km y a los 700.
 - **Ajustes:** tu nombre, pantalla de inicio, tus deportes (añadir de la lista, crear uno propio, ocultar, ordenar), objetivo semanal, carreras, material y copias de seguridad.
 
+## Importar un plan de entrenamiento
+
+En **Semana → Importar plan** puedes meter un plan entero desde un Excel (.xlsx), un CSV o texto pegado. Antes de guardar se ve cómo queda cada día.
+
+Una fila por sesión (dos sesiones el mismo día = dos filas). La primera fila es la cabecera:
+
+| Semana | Día | Deporte | Tipo | Descripción |
+|---|---|---|---|---|
+| 1 | Lunes | Carrera | Rodaje suave | 45 min Z2 |
+| 1 | Martes | Fuerza | Pierna | Pierna completa |
+| 1 | Viernes | Descanso | | |
+
+- En lugar de **Semana** y **Día** puedes usar una columna **Fecha** (17/11/2026 o 2026-11-17).
+- **Deporte**: el nombre de uno de tus deportes (también vale «correr», «bici», «gym»…). «Descanso» marca el día libre. Un deporte que no exista se añade.
+- **Tipo**, **Duración** y **Notas** son opcionales.
+- También vale texto libre: «Semana 1», «Lunes: Carrera 45 min suave», «Martes: Fuerza pierna + Natación 2000 m».
+
+Plantilla: [`plantillas/plan-ejemplo.csv`](plantillas/plan-ejemplo.csv) (también se descarga desde la app).
+
 ## Instalar en el móvil
 
 - **iPhone (Safari):** Compartir → «Añadir a pantalla de inicio».
@@ -33,6 +52,8 @@ El objeto guardado lleva un número de versión (`schema`). Cuando cambia la est
 index.html            Estructura y barra de pestañas
 css/app.css           Estilos (modo claro y oscuro)
 js/app.js             Toda la lógica de la app
+js/vendor/            SheetJS (lectura de Excel, licencia Apache 2.0)
+plantillas/           Plantilla para importar un plan
 sw.js                 Funcionamiento sin conexión
 manifest.webmanifest  Datos para instalarla como app
 icons/                Iconos
