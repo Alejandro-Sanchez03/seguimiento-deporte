@@ -201,7 +201,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.13-3'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.13-5'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -886,6 +886,10 @@ function startFromPlan(p, opts = {}) {
   if (S.intervals && isPaceMetric(S.metric) && iv && iv.distM) {
     if (!draft.type && (S.types || []).includes('Series')) draft.type = 'Series';
     if (draft.type === 'Series') { draft.reps.count = iv.count; draft.reps.distM = iv.distM; }
+  }
+  if (!opts.exercises && S.metric === 'strength') {
+    const planned = plannedExercises(p);
+    if (planned.length) opts.exercises = planned;
   }
   if (opts.exercises) draft.exercises = clone(opts.exercises).map((e) => ({ name: e.name, sets: (e.sets || []).map((st) => ({ reps: st.reps ?? null, kg: st.kg ?? null })) }));
   closeSheet();
@@ -2369,29 +2373,151 @@ function relDay(d) {
   return n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : n === -1 ? 'Ayer' : '';
 }
 
+// ---------- El entreno por pasos (como en un reloj deportivo) ----------
+const PHASES = { warm: 'Calentamiento', main: 'Parte principal', cool: 'Vuelta a la calma' };
+const PHASE_PREFIX = /^(calentamiento|calentar|calent\.?|warm.?up|activaci[oó]n|entrada en calor|parte principal|principal|bloque principal|vuelta a la calma|enfriamiento|cool.?down|soltar)\s*[:.\-–]?\s*/i;
+const INTENSITY = [
+  { lvl: 'hard', label: 'Fuerte', re: /\b(fuerte|r[aá]pid\w*|intens\w*|umbral|sprint\w*|m[aá]xim\w*|cambios de ritmo|vo2\w*|explosiv\w*)/i },
+  { lvl: 'mod', label: 'Moderado', re: /\b(moderad\w*|medio|tempo|progresiv\w*|ritmo (?:de )?marat[oó]n|aer[oó]bico|controlad\w*)/i },
+  { lvl: 'easy', label: 'Suave', re: /\b(suave|f[aá]cil|regenerativ\w*|tranquil\w*|trote|trotando|rodaje|relajad\w*|al trote|andando|caminando)/i },
+];
+const WORK_VERB = { run: 'Correr', swim: 'Nadar', owswim: 'Nadar', bike: 'Pedalear', row: 'Remar', hike: 'Caminar', skate: 'Patinar', ski: 'Esquiar' };
+function intensityOf(t) {
+  const z = /\bz\s?([1-5])\b/i.exec(t || '');
+  if (z) { const n = Number(z[1]); return { lvl: n <= 2 ? 'easy' : n === 3 ? 'mod' : 'hard', label: `Z${n}` }; }
+  const hit = INTENSITY.find((x) => x.re.test(t || ''));
+  return hit ? { lvl: hit.lvl, label: hit.label } : null;
+}
+const stripWords = (t, res) => res.reduce((acc, re) => acc.replace(re, ' '), t).replace(/\s{2,}/g, ' ').replace(/^[\s,.:;\-–+]+|[\s,.:;\-–+]+$/g, '').trim();
+
+// Un trozo de texto → paso: serie repetida, ejercicio de fuerza, bloque (tiempo/distancia) o texto.
+function stepFromText(raw, sport) {
+  const t = raw.trim();
+  const M = METRICS[metricOf(sport)] || {};
+  if (metricOf(sport) === 'strength') {
+    const ex = /^(.+?)\s*[:\-–]?\s+(\d{1,2})\s*[x×]\s*(\d{1,3})\s*(?:reps?|repeticiones)?(?:\s*(?:@|a|con|-|,)?\s*(\d+(?:[.,]\d+)?)\s*kg)?\s*(.*)$/i.exec(t);
+    if (ex && /[a-záéíóúñ]/i.test(ex[1])) {
+      return { kind: 'exercise', name: cap(ex[1].trim()), sets: Number(ex[2]), reps: Number(ex[3]), kg: ex[4] ? Number(ex[4].replace(',', '.')) : null, note: ex[5].replace(/^[\s,.\-–]+/, '') };
+    }
+  }
+  if (/\d{1,2}\s*[x×]\s*\d/.test(t)) {
+    const iv = parseIntervals(t, sport);
+    if (iv && (iv.distM || iv.repSec)) {
+      const rm = /(?:rec(?:up(?:eraci[oó]n)?)?|desc(?:anso)?|pausa)\.?\s*:?\s*\d+(?:[:'.]\d{1,2})?\s*(?:''|"|s\b|seg\b|min\b|'|m\b)?\s*(.*)$/i.exec(t);
+      const workTxt = rm ? t.slice(0, rm.index) : t;
+      const restNote = rm ? rm[1].replace(/^[,\s]+/, '').trim() : '';
+      const inten = intensityOf(workTxt) || (iv.pace || iv.perRepSec ? { lvl: 'hard', label: 'Fuerte' } : null);
+      return { kind: 'repeat', iv, restNote, intensity: inten, sec: iv.totalSec || null, distM: iv.totalM || null, paceLbl: M.paceLbl };
+    }
+  }
+  const step = { kind: 'block', intensity: intensityOf(t) };
+  let m;
+  const consumed = [];
+  if ((m = /(\d{1,2})\s*h\s*(\d{1,2})?\s*(?:min|')?/i.exec(t))) { step.sec = Number(m[1]) * 3600 + Number(m[2] || 0) * 60; consumed.push(m[0]); }
+  else if ((m = /(\d{1,3})\s*(?:min(?:utos)?|')(?![a-z])/i.exec(t))) { step.sec = Number(m[1]) * 60; consumed.push(m[0]); }
+  if ((m = /(\d+(?:[.,]\d+)?)\s*(km|m)\b/i.exec(t))) { step.distM = Number(m[1].replace(',', '.')) * (m[2].toLowerCase() === 'km' ? 1000 : 1); consumed.push(m[0]); }
+  if ((m = /(?:\ba\b|@)\s*(\d{1,2}[:'.]\d{2})\s*(?:\/\s*(?:km|100\s?m|500\s?m))?/i.exec(t))) { step.pace = parsePace(m[1].replace(/['.]/g, ':')); consumed.push(m[0]); }
+  if (!step.sec && step.distM && step.pace && M.paceM) step.sec = step.pace * (step.distM / M.paceM);
+  let note = stripWords(t, [...consumed.map((c) => new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')), /\bz\s?[1-5]\b/gi, ...INTENSITY.map((x) => new RegExp(x.re.source, 'gi'))]);
+  if (!step.sec && !step.distM && (m = /^(\d{1,3})\s+(\D.*)$/.exec(t))) { step.count = Number(m[1]); note = m[2].trim(); }
+  if (!step.sec && !step.distM && !step.count) return { kind: 'text', text: t, intensity: step.intensity };
+  step.note = note;
+  return step;
+}
+
+// Texto del entreno → fases con sus pasos.
+function workoutSteps(p) {
+  const phaseOf = (line) => (WARM_RE.test(line) ? 'warm' : COOL_RE.test(line) ? 'cool' : 'main');
+  const clean = (t) => t.replace(/^(?:[-•*·]|\d{1,2}[.)])\s+/, '').trim();
+  const lines = (p.notes ? p.notes.split(/\n|;/) : String(p.desc || '').split(/ · |;/)).map(clean).filter(Boolean);
+  const phases = [];
+  const push = (ph, steps) => {
+    const last = phases[phases.length - 1];
+    if (last && last.ph === ph) last.steps.push(...steps); else phases.push({ ph, steps });
+  };
+  for (const line of lines) {
+    const ph = phaseOf(line);
+    const body = line.replace(PHASE_PREFIX, '');
+    const parts = body.split(/\s\+\s|,\s(?=\d)/).map((x) => x.trim()).filter(Boolean);
+    push(ph, (parts.length ? parts : [body]).map((x) => stepFromText(x, p.sport)));
+  }
+  if (p.notes && p.desc && !phases.some((x) => x.ph === 'main')) {
+    const i = phases.findIndex((x) => x.ph === 'cool');
+    phases.splice(i < 0 ? phases.length : i, 0, { ph: 'main', steps: [stepFromText(p.desc, p.sport)] });
+  }
+  return phases;
+}
+
+const intPill = (i) => (i ? `<span class="int int-${i.lvl}">${esc(i.label)}</span>` : '');
+const qtyTxt = (sport, s) => [s.sec ? fmtHM(s.sec) : '', s.distM ? (s.distM >= 1000 ? `${nf(s.distM / 1000, 2)} km` : `${nf(s.distM)} m`) : ''].filter(Boolean);
+function stepHTML(s, p) {
+  const M = METRICS[metricOf(p.sport)] || {};
+  if (s.kind === 'repeat') {
+    const iv = s.iv;
+    const work = iv.distM ? (iv.distM >= 1000 && iv.distM % 1000 === 0 ? `${iv.distM / 1000} km` : `${nf(iv.distM)} m`) : fmtDur(iv.repSec);
+    const workSub = [iv.pace && M.paceM ? `a ${fmtPace(iv.pace)} ${M.paceLbl}` : '', iv.perRepSec && iv.distM ? `≈ ${fmtDur(iv.perRepSec)} cada una` : ''].filter(Boolean).join(' · ');
+    const rest = iv.restSec ? fmtDur(iv.restSec) : iv.restDistM ? `${nf(iv.restDistM)} m` : '';
+    return `<div class="rep">
+      <div class="rep-head"><span>Repite</span><b class="num">${iv.count}</b><span>veces</span></div>
+      <div class="rep-row work"><span class="rep-n">1</span><div class="rep-txt"><b>${esc(WORK_VERB[p.sport] || 'Trabajo')} ${esc(work)}</b>${workSub ? `<span>${esc(workSub)}</span>` : ''}</div>${intPill(s.intensity)}</div>
+      ${rest ? `<div class="rep-row rest"><span class="rep-n">2</span><div class="rep-txt"><b>Recuperar ${esc(rest)}</b>${s.restNote ? `<span>${esc(s.restNote)}</span>` : ''}</div>${intPill({ lvl: 'easy', label: 'Suave' })}</div>` : ''}
+      ${iv.totalM || iv.totalSec ? `<div class="rep-foot num">${[iv.totalM ? `${iv.totalM >= 1000 ? nf(iv.totalM / 1000, 2) + ' km' : nf(iv.totalM) + ' m'} en series` : '', iv.totalSec ? `≈ ${fmtDur(iv.totalSec)} con recuperaciones` : ''].filter(Boolean).join(' · ')}</div>` : ''}
+    </div>`;
+  }
+  if (s.kind === 'exercise') {
+    const last = lastExercise(s.name, null, p.date);
+    return `<div class="exc">
+      <div class="exc-head"><b>${esc(s.name)}</b>${s.kg ? `<span class="num">${esc(nf(s.kg, 1))} kg</span>` : ''}</div>
+      <div class="exc-sets">${Array.from({ length: Math.min(s.sets, 12) }, () => `<span class="num">${s.reps}</span>`).join('')}<span class="exc-lbl">${s.sets} series × ${s.reps} reps</span></div>
+      ${s.note ? `<div class="step-note">${esc(s.note)}</div>` : ''}
+      ${last ? `<div class="exc-last">Última vez (${esc(shortDate(last.date))}): <b class="num">${esc(setsTxt(last.sets))}</b></div>` : ''}
+    </div>`;
+  }
+  if (s.kind === 'text') return `<div class="step"><div class="step-note">${esc(s.text)}</div>${intPill(s.intensity)}</div>`;
+  const big = s.count ? String(s.count) : qtyTxt(p.sport, s).join(' · ');
+  const sub = s.pace && M.paceM ? `a ${fmtPace(s.pace)} ${M.paceLbl}` : '';
+  return `<div class="step"><div class="step-main"><b class="step-big num">${esc(big)}</b>${intPill(s.intensity)}</div>
+    ${s.note ? `<div class="step-note">${esc(s.note)}</div>` : ''}${sub ? `<div class="step-sub num">${esc(sub)}</div>` : ''}</div>`;
+}
+// Ejercicios escritos en el plan («Sentadilla 4x8 @ 80 kg») con sus series, para registrarlos.
+function plannedExercises(p) {
+  return workoutSteps(p).flatMap((ph) => ph.steps).filter((x) => x.kind === 'exercise')
+    .map((x) => ({ name: x.name, sets: Array.from({ length: Math.min(x.sets, 12) }, () => ({ reps: x.reps, kg: x.kg })) }));
+}
+function stepsHTML(p) {
+  const phases = workoutSteps(p);
+  if (!phases.length) return '';
+  const secOf = (ph) => ph.steps.reduce((a, s) => a + (s.sec || 0), 0);
+  // Pasos sin tiempo conocido (los «4 progresivos» o un texto suelto no cuentan).
+  const timed = (st) => st.kind === 'block' || st.kind === 'repeat' ? !!st.sec || !!st.count : true;
+  const nEx = phases.reduce((a, ph) => a + ph.steps.filter((x) => x.kind === 'exercise').length, 0);
+  const unknown = nEx > 0 || phases.some((ph) => ph.steps.some((x) => !timed(x)));
+  const total = phases.reduce((a, ph) => a + secOf(ph), 0);
+  const measurable = phases.flatMap((ph) => ph.steps).filter((x) => x.kind === 'block' || x.kind === 'repeat');
+  const dist = measurable.every((x) => x.distM || x.count) ? measurable.reduce((a, x) => a + (x.distM || 0), 0) : 0;
+  const summary = [
+    total && !unknown ? `≈ ${fmtHM(total)} en total` : '',
+    dist ? `${dist >= 1000 ? nf(dist / 1000, 1) + ' km' : nf(dist) + ' m'} en total` : '',
+    nEx ? `${nEx} ejercicio${nEx === 1 ? '' : 's'}` : '',
+    phases.length > 1 ? `${phases.length} partes` : '',
+  ].filter(Boolean);
+  const bar = total && !unknown && phases.length > 1
+    ? `<div class="plan-bar" role="img" aria-label="Reparto del tiempo por partes">${phases.map((ph) => `<i class="ph-${ph.ph}" style="flex:${Math.max(secOf(ph), total * 0.04)}"><span>${esc(fmtHM(secOf(ph)))}</span></i>`).join('')}</div>`
+    : '';
+  return `<div class="steps s-${esc(p.sport)}">${summary.length ? `<div class="plan-sum">${summary.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}${bar}
+    <ol class="phases">${phases.map((ph) => `<li class="phase ph-${ph.ph}">
+      <div class="ph-head"><span class="ph-dot"></span><span>${esc(PHASES[ph.ph])}</span>${secOf(ph) && ph.steps.every((x) => timed(x) && x.kind !== 'exercise') ? `<span class="ph-time num">${esc(fmtHM(secOf(ph)))}</span>` : ''}</div>
+      <div class="ph-steps">${ph.steps.map((s) => stepHTML(s, p)).join('')}</div>
+    </li>`).join('')}</ol>
+    <details class="raw"><summary>Ver texto original</summary><div class="wo-notes">${esc([p.desc, p.notes].filter(Boolean).join('\n'))}</div></details></div>`;
+}
+
 function viewWorkout(app, banner) {
   const p = detailId ? data.plan.get(detailId) : null;
   if (!p) { go('hoy'); return; }
   const S = sp(p.sport), M = METRICS[S.metric] || {};
   const st = planState(p);
   const done = st === 'done' ? data.sessions.get(p.sessionId) : null;
-  const text = [p.desc, p.notes].filter(Boolean).join('\n');
-  const iv = parseIntervals(text, p.sport);
-  const basics = parseBasics(p.desc || '', p.sport); // duración y distancia de la sesión, no del calentamiento
-  const blocks = workoutBlocks(p);
-  const tiles = [];
-  if (iv) {
-    tiles.push(['Series', `${iv.count} × ${iv.distM ? (iv.distM >= 1000 && iv.distM % 1000 === 0 ? `${iv.distM / 1000} km` : `${nf(iv.distM)} m`) : fmtDur(iv.repSec)}`]);
-    if (iv.pace && M.paceM) tiles.push(['Ritmo objetivo', `${fmtPace(iv.pace)} ${M.paceLbl}`]);
-    if (iv.perRepSec && iv.distM) tiles.push(['Cada repetición', `≈ ${fmtDur(iv.perRepSec)}`]);
-    if (iv.restSec) tiles.push(['Recuperación', fmtDur(iv.restSec)]);
-    else if (iv.restDistM) tiles.push(['Recuperación', `${nf(iv.restDistM)} m`]);
-    if (iv.totalM) tiles.push(['Volumen de series', iv.totalM >= 1000 ? `${nf(iv.totalM / 1000, 2)} km` : `${nf(iv.totalM)} m`]);
-    if (iv.totalSec) tiles.push(['Tiempo de series', `≈ ${fmtDur(iv.totalSec)}`]);
-  }
-  if (basics.durSec) tiles.push(['Duración', fmtHM(basics.durSec)]);
-  if (basics.distM) tiles.push(['Distancia', distFmt(p.sport, basics.distM)]);
-  if (basics.zone) tiles.push(['Intensidad', basics.zone]);
   const ref = lastSimilar(p);
   const isStrength = S.metric === 'strength';
   const rel = relDay(p.date);
@@ -2407,10 +2533,9 @@ function viewWorkout(app, banner) {
         ${done ? `<div class="done-line">${ICO_CHECK} Hecha · ${esc(summary(done))}</div>` : ''}
       </div>
     </article>
-    ${tiles.length ? `<div class="wo-tiles">${tiles.map(([k, v]) => `<div class="stat"><span>${esc(k)}</span><b class="num">${esc(v)}</b></div>`).join('')}</div>` : ''}
     <section><div class="sec-head"><h2>El entreno</h2><button class="btn small" id="wo-note-edit">${p.notes ? 'Editar detalle' : '+ Añadir detalle'}</button></div>
       <div id="wo-note-box">
-        ${blocks.length ? `<ol class="wo-blocks">${blocks.map((b) => `<li><span class="eyebrow">${esc(b.label)}</span>${b.lines.map((l) => `<p>${esc(l)}</p>`).join('')}</li>`).join('')}</ol>` : ''}
+        ${stepsHTML(p)}
         ${p.notes ? '' : '<p class="hint" style="margin:0">Añade las indicaciones completas de tu entrenador (calentamiento, series, recuperaciones, ejercicios), una por línea.</p>'}
       </div>
     </section>
@@ -2422,6 +2547,7 @@ function viewWorkout(app, banner) {
       ${done ? `<button class="btn primary block" data-edit="${esc(done.id)}">Ver o corregir el registro</button>` : `
         <button class="btn sport block s-${p.sport}" id="wo-do">${ICO_CHECK} Hecha · registrar</button>
         ${isStrength && ref?.exercises?.length ? '<button class="btn block" id="wo-do-copy">Registrar con los ejercicios de la última vez</button>' : ''}
+        ${isStrength && plannedExercises(p).length ? '<p class="hint" style="margin:0">Al registrar se rellenan los ejercicios de este entreno con sus series y kilos; solo tendrás que ajustar lo que cambie.</p>' : ''}
         <div class="row"><button class="btn" id="wo-move">Mover a otro día</button>${p.date !== today() ? '<button class="btn" id="wo-today">Pasar a hoy</button>' : ''}</div>`}
       <div class="row"><button class="btn" id="wo-edit">Editar</button><button class="btn" id="wo-dup">Duplicar</button></div>
       <button class="btn danger block" id="wo-del">Eliminar del plan</button>
