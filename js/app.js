@@ -201,7 +201,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.13-2'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.13-3'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -368,7 +368,7 @@ function routeFromHash() {
   if (r === 'historial') return 'progreso';
   if (r === 'datos') return 'ajustes';
   if (r === 'zapatillas') return 'material';
-  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'material', 'importar-plan'].includes(r) ? r : 'hoy';
+  return ['hoy', 'semana', 'registrar', 'progreso', 'ajustes', 'carreras', 'material', 'importar-plan', 'entreno'].includes(r) ? r : 'hoy';
 }
 let draft = null;
 let renderQueued = false;
@@ -401,7 +401,7 @@ function render(fromData = false) {
   $$('.tabs a').forEach((a) => { if (a.dataset.tab === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const app = $('#app');
   const banner = unreadableNote ? '<div class="note bad">Había datos guardados que no se pudieron leer. Se han apartado sin borrarlos. Si echas algo en falta, importa tu última copia de seguridad.</div>' : '';
-  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, material: viewGear, 'importar-plan': viewImportPlan };
+  const views = { hoy: viewToday, semana: viewWeek, registrar: viewForm, progreso: viewProgress, ajustes: viewSettings, carreras: viewRaces, material: viewGear, 'importar-plan': viewImportPlan, entreno: viewWorkout };
   (views[route] || viewToday)(app, banner);
 }
 window.addEventListener('hashchange', () => {
@@ -469,10 +469,15 @@ function wToday(t) {
   const cards = items.map((p) => {
     const done = planState(p) === 'done';
     const s = done ? data.sessions.get(p.sessionId) : null;
+    const iv = parseIntervals([p.desc, p.notes].filter(Boolean).join('\n'), p.sport);
+    const M = METRICS[metricOf(p.sport)] || {};
+    const hint = iv && iv.pace && M.paceM ? `${iv.count} × ${iv.distM ? nf(iv.distM) + ' m' : fmtDur(iv.repSec)} a ${fmtPace(iv.pace)} ${M.paceLbl}${iv.perRepSec && iv.distM ? ` · ≈ ${fmtDur(iv.perRepSec)} cada una` : ''}` : p.notes ? p.notes.split('\n')[0] : '';
     return `<article class="today s-${p.sport}">
-      <div class="today-band">${ico(p.sport)}<span class="kind">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}</span></div>
+      <button type="button" class="today-open" data-plan="${esc(p.id)}" aria-label="Ver el detalle del entreno">
+        <span class="today-band">${ico(p.sport)}<span class="kind">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}</span><span class="today-more">Ver detalle ${ICO_R}</span></span>
+        <span class="today-body today-head"><span class="today-desc">${esc(p.desc || p.type || sp(p.sport).label)}</span>${hint ? `<span class="today-hint">${esc(hint)}</span>` : ''}</span>
+      </button>
       <div class="today-body">
-        <div class="today-desc">${esc(p.desc || p.type || sp(p.sport).label)}</div>
         ${done
           ? `<div class="done-line">${ICO_CHECK} Hecha · ${esc(summary(s))}</div>
              <button class="btn block" data-edit="${esc(s.id)}">Ver o corregir el registro</button>`
@@ -602,7 +607,7 @@ function viewToday(app, banner) {
 function planRow(p) {
   const st = planState(p);
   const badge = st === 'done' ? `<span class="badge done">${ICO_CHECK.replace('class="ico"', 'class="ico" style="width:14px;height:14px"')}Hecha</span>` : st === 'missed' ? '<span class="badge missed">No hecha</span>' : '';
-  return `<button class="item s-${p.sport}" data-sheet="${esc(p.id)}"><span class="tile">${ico(p.sport)}</span>
+  return `<button class="item s-${p.sport}" data-plan="${esc(p.id)}"><span class="tile">${ico(p.sport)}</span>
     <span class="item-main"><span class="item-title">${esc(p.desc || p.type || sp(p.sport).label)}</span><span class="item-sub">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}</span></span>${badge}</button>`;
 }
 function sessionRow(s) {
@@ -615,6 +620,7 @@ function bindCommon(root) {
   root.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => editSession(b.dataset.edit)));
   root.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => startMove({ kind: 'item', id: b.dataset.move })));
   root.querySelectorAll('[data-sheet]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); planSheet(b.dataset.sheet); }));
+  root.querySelectorAll('[data-plan]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openWorkout(b.dataset.plan); }));
   root.querySelectorAll('[data-today]').forEach((b) => (b.onclick = () => movePlan(b.dataset.today, today())));
   root.querySelectorAll('[data-daytoggle]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggleDay(b.dataset.daytoggle); }));
   root.querySelectorAll('[data-backup]').forEach((b) => (b.onclick = () => exportFile('json')));
@@ -654,7 +660,7 @@ function viewWeek(app, banner) {
       ${pl.map((p) => {
         const ps = planState(p);
         const s = ps === 'done' ? data.sessions.get(p.sessionId) : null;
-        return `<button class="pill s-${p.sport} ${ps === 'done' ? 'is-done' : ''} ${ps === 'missed' ? 'is-missed' : ''} ${moving?.id === p.id ? 'is-moving' : ''}" data-sheet="${esc(p.id)}">
+        return `<button class="pill s-${p.sport} ${ps === 'done' ? 'is-done' : ''} ${ps === 'missed' ? 'is-missed' : ''} ${moving?.id === p.id ? 'is-moving' : ''}" data-plan="${esc(p.id)}">
           ${ico(p.sport)}
           <span class="pill-main"><span class="pill-title">${esc(p.desc || p.type || sp(p.sport).label)}</span>
           <span class="pill-sub">${esc(sp(p.sport).label)}${p.type ? ' · ' + esc(p.type) : ''}${s ? ' · ' + esc(summary(s)) : ''}</span></span>
@@ -792,21 +798,23 @@ function planSheet(id) {
 }
 
 function planEditor(init) {
-  const p = { id: init.id || null, date: init.date || today(), sport: init.sport || SPORT_KEYS[0], type: init.type || '', desc: init.desc || '' };
+  const p = { id: init.id || null, date: init.date || today(), sport: init.sport || SPORT_KEYS[0], type: init.type || '', desc: init.desc || '', notes: init.notes || '' };
   const draw = (el) => {
     el.innerHTML = `<div class="sheet-grip"></div><h2>${p.id ? 'Editar sesión planificada' : 'Planificar sesión'}</h2>
       <div class="sports">${SPORT_KEYS.map((k) => `<button type="button" class="s-${k}" data-sp="${k}" aria-pressed="${p.sport === k}">${ico(k)}<span>${esc(sp(k).label)}</span></button>`).join('')}</div>
       <div class="field"><span class="lbl">Tipo</span><div class="chips">${(sp(p.sport).types || []).map((t) => `<button type="button" data-ty="${esc(t)}" aria-pressed="${p.type === t}">${esc(t)}</button>`).join('')}</div></div>
       <div class="field"><label for="pe-desc">Descripción</label><input id="pe-desc" type="text" value="${esc(p.desc)}" placeholder="${esc(sp(p.sport).ph || 'Descripción breve')}" maxlength="120" autocomplete="off"></div>
+      <div class="field"><label for="pe-notes">Detalle (opcional)</label><textarea id="pe-notes" placeholder="Calentamiento, series, recuperaciones, ejercicios… una cosa por línea">${esc(p.notes)}</textarea></div>
       <div class="field"><label for="pe-date">Día</label><input id="pe-date" type="date" value="${esc(p.date)}"></div>
       <button class="btn primary block" id="pe-save">${p.id ? 'Guardar cambios' : 'Añadir al plan'}</button>`;
-    $$('[data-sp]', el).forEach((b) => (b.onclick = () => { p.desc = $('#pe-desc', el).value; p.date = $('#pe-date', el).value; p.sport = b.dataset.sp; p.type = ''; draw(el); }));
-    $$('[data-ty]', el).forEach((b) => (b.onclick = () => { p.desc = $('#pe-desc', el).value; p.date = $('#pe-date', el).value; p.type = p.type === b.dataset.ty ? '' : b.dataset.ty; draw(el); }));
+    const keep = () => { p.desc = $('#pe-desc', el).value; p.notes = $('#pe-notes', el).value; p.date = $('#pe-date', el).value; };
+    $$('[data-sp]', el).forEach((b) => (b.onclick = () => { keep(); p.sport = b.dataset.sp; p.type = ''; draw(el); }));
+    $$('[data-ty]', el).forEach((b) => (b.onclick = () => { keep(); p.type = p.type === b.dataset.ty ? '' : b.dataset.ty; draw(el); }));
     $('#pe-save', el).onclick = async () => {
       const date = $('#pe-date', el).value;
       if (!isISO(date)) { toast('Elige un día'); return; }
       const prev = p.id ? data.plan.get(p.id) : null;
-      const obj = { ...(prev || {}), id: p.id || uid(), sport: p.sport, type: p.type, desc: $('#pe-desc', el).value.trim(), date, order: prev?.order || Date.now(), sessionId: prev?.sessionId || null };
+      const obj = { ...(prev || {}), id: p.id || uid(), sport: p.sport, type: p.type, desc: $('#pe-desc', el).value.trim(), notes: $('#pe-notes', el).value.trim().slice(0, 2000), date, order: prev?.order || Date.now(), sessionId: prev?.sessionId || null };
       closeSheet();
       await put('plan', obj).catch(() => {});
       toast(p.id ? 'Plan actualizado' : 'Añadida al plan');
@@ -836,7 +844,7 @@ function copyWeekSheet() {
       for (let k = 1; k <= n; k++) {
         const mon = addDays(weekMon, 7 * k);
         if (replace) weekInfo(mon).days.flatMap(planOn).filter((p) => planState(p) !== 'done').forEach((p) => tasks.push(() => del('plan', p.id)));
-        items.forEach((p, i) => tasks.push(() => put('plan', { id: uid(), sport: p.sport, type: p.type || '', desc: p.desc || '', date: addDays(p.date, 7 * k), order: Date.now() + i, sessionId: null })));
+        items.forEach((p, i) => tasks.push(() => put('plan', { id: uid(), sport: p.sport, type: p.type || '', desc: p.desc || '', notes: p.notes || '', date: addDays(p.date, 7 * k), order: Date.now() + i, sessionId: null })));
       }
       const errs = await pool(tasks);
       toast(errs ? `Copiado con ${errs} errores` : `Copiada a ${n} semana${n === 1 ? '' : 's'}`);
@@ -870,13 +878,16 @@ function lastSport() {
   const s = sessionsDesc()[0];
   return s && SPORT_KEYS.includes(s.sport) ? s.sport : null;
 }
-function startFromPlan(p) {
+function startFromPlan(p, opts = {}) {
   if (!p) return;
   draft = newDraft({ sport: p.sport, date: p.date, type: p.type, title: p.desc, planId: p.id });
-  if (sp(p.sport).intervals && p.type === 'Series') {
-    const m = /(\d+)\s*[x×]\s*(\d+)/i.exec(p.desc || '');
-    if (m) { draft.reps.count = Number(m[1]); draft.reps.distM = Number(m[2]); }
+  const S = sp(p.sport);
+  const iv = parseIntervals([p.desc, p.notes].filter(Boolean).join('\n'), p.sport);
+  if (S.intervals && isPaceMetric(S.metric) && iv && iv.distM) {
+    if (!draft.type && (S.types || []).includes('Series')) draft.type = 'Series';
+    if (draft.type === 'Series') { draft.reps.count = iv.count; draft.reps.distM = iv.distM; }
   }
+  if (opts.exercises) draft.exercises = clone(opts.exercises).map((e) => ({ name: e.name, sets: (e.sets || []).map((st) => ({ reps: st.reps ?? null, kg: st.kg ?? null })) }));
   closeSheet();
   go('registrar');
 }
@@ -1454,7 +1465,7 @@ function viewProgress(app, banner) {
 
 // ===================== DATOS =====================
 const CSV_S = ['id', 'fecha', 'deporte', 'tipo', 'titulo', 'duracion_seg', 'distancia_m', 'desnivel_m', 'rpe', 'sensaciones', 'notas', 'plan_id', 'detalle_json'];
-const CSV_P = ['id', 'fecha', 'deporte', 'tipo', 'descripcion', 'sesion_id'];
+const CSV_P = ['id', 'fecha', 'deporte', 'tipo', 'descripcion', 'sesion_id', 'detalle'];
 const csvCell = (v) => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 function toCSV(header, rows) { return '﻿' + [header.join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n'); }
 function parseCSV(text) {
@@ -1478,7 +1489,7 @@ function sessionsCSV() {
   }));
 }
 function planCSV() {
-  return toCSV(CSV_P, [...data.plan.values()].sort((a, b) => a.date.localeCompare(b.date)).map((p) => [p.id, p.date, p.sport, p.type, p.desc, p.sessionId]));
+  return toCSV(CSV_P, [...data.plan.values()].sort((a, b) => a.date.localeCompare(b.date)).map((p) => [p.id, p.date, p.sport, p.type, p.desc, p.sessionId, p.notes || '']));
 }
 function fullJSON() {
   return JSON.stringify({ app: 'cuaderno-deporte', version: 2, exportedAt: new Date().toISOString(), settings,
@@ -1493,7 +1504,7 @@ function cleanSession(s) {
 }
 function cleanPlan(p) {
   if (!p || !isISO(p.date) || !validKey(p.sport)) return null;
-  return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
+  return { id: typeof p.id === 'string' && /^[\w.~:@+-]+$/.test(p.id) ? p.id : uid(), date: p.date, sport: p.sport, type: p.type || '', desc: p.desc || '', notes: String(p.notes || '').slice(0, 2000), order: Number(p.order) || Date.now(), sessionId: p.sessionId || null };
 }
 async function importText(name, text) {
   let sessions = [], plan = [], days = [], races = [], gear = [];
@@ -1520,7 +1531,7 @@ async function importText(name, text) {
           durationSec: nOr('duracion_seg'), distanceM: nOr('distancia_m'), elevationM: nOr('desnivel_m'), rpe: nOr('rpe'), feel: nOr('sensaciones'), notes: r[ix('notas')] || '', planId: r[ix('plan_id')] || null });
       }).filter(Boolean);
     } else if (head.includes('descripcion')) {
-      plan = rows.map((r) => cleanPlan({ id: r[ix('id')], date: r[ix('fecha')], sport: r[ix('deporte')], type: r[ix('tipo')], desc: r[ix('descripcion')], sessionId: r[ix('sesion_id')] || null })).filter(Boolean);
+      plan = rows.map((r) => cleanPlan({ id: r[ix('id')], date: r[ix('fecha')], sport: r[ix('deporte')], type: r[ix('tipo')], desc: r[ix('descripcion')], notes: ix('detalle') >= 0 ? r[ix('detalle')] : '', sessionId: r[ix('sesion_id')] || null })).filter(Boolean);
     } else throw new Error('formato');
   }
   const total = sessions.length + plan.length + days.length + races.length + gear.length;
@@ -1819,7 +1830,8 @@ const COL_ALIASES = {
   sport: ['deporte', 'sport', 'actividad', 'disciplina', 'modalidad'],
   type: ['tipo', 'type', 'tipo de sesion'],
   desc: ['descripcion', 'sesion', 'entreno', 'entrenamiento', 'detalle', 'workout', 'que hacer', 'contenido'],
-  extra: ['duracion', 'tiempo', 'minutos', 'notas', 'nota', 'observaciones', 'comentarios', 'intensidad', 'zona'],
+  extra: ['duracion', 'tiempo', 'minutos', 'intensidad', 'zona', 'ritmo'],
+  notes: ['notas', 'nota', 'observaciones', 'comentarios', 'detalle', 'detalles', 'indicaciones'],
 };
 
 // Deporte a partir de un texto: tus deportes (nombre o clave), sinónimos y la lista de deportes de la app.
@@ -1919,7 +1931,7 @@ function mapHeader(row) {
   row.forEach((h, i) => {
     const n = normTxt(h).replace(/[º°#.]/g, '').trim();
     for (const [k, aliases] of Object.entries(COL_ALIASES)) {
-      if (k === 'extra') { if (aliases.includes(n)) (cols.extra ||= []).push(i); continue; }
+      if (k === 'extra' || k === 'notes') { if (aliases.includes(n)) (cols[k] ||= []).push(i); continue; }
       if (cols[k] == null && aliases.includes(n)) cols[k] = i;
     }
   });
@@ -1948,13 +1960,14 @@ function entriesFromTable(rows) {
     let desc = cell('desc');
     const extra = (cols.extra || []).map((j) => (r[j] || '').trim()).filter(Boolean);
     if (extra.length) desc = [desc, ...extra].filter(Boolean).join(' · ');
+    const notes = (cols.notes || []).map((j) => (r[j] || '').trim()).filter(Boolean).join('\n');
     if (!sportRaw && !desc && !type) return;
     if (!date && dow == null) { errors.push({ line, msg: `no tiene fecha ni día de la semana válidos («${cell('date') || cell('day') || r.join(' ')}»)` }); return; }
     lastDate = date; lastDay = dow; lastWeek = week;
     if (isRest(sportRaw) || (!sportRaw && isRest(desc))) { entries.push({ line, date, week, dow, rest: true }); return; }
     let sport = matchSport(sportRaw), d = desc;
     if (!sportRaw) { const pre = sportPrefix(desc); if (pre) { sport = pre.key; d = pre.rest || desc; } }
-    entries.push({ line, date, week, dow, sport, sportRaw: sportRaw || '', type, desc: d });
+    entries.push({ line, date, week, dow, sport, sportRaw: sportRaw || '', type, desc: d, notes });
   });
   return { entries, errors };
 }
@@ -1997,7 +2010,7 @@ function entriesFromText(text) {
       const pre = sportPrefix(part);
       const prev = dayEntries[dayEntries.length - 1];
       // Línea sin deporte debajo de una sesión: es parte de su descripción («Calentamiento 15 min»).
-      if (!pre && prev && !prev.rest) { prev.desc = [prev.desc, part].filter(Boolean).join(' · '); continue; }
+      if (!pre && prev && !prev.rest) { prev.notes = [prev.notes, part].filter(Boolean).join('\n'); continue; }
       const e = { line, date, week, dow, sport: pre ? pre.key : null, sportRaw: pre ? '' : part.split(/\s+/)[0], type: '', desc: pre ? pre.rest : part };
       entries.push(e); dayEntries.push(e);
     }
@@ -2054,7 +2067,9 @@ function analyzePlan(input, startMon) {
       }
     }
     else { const t = types.find((x) => normTxt(x) === normTxt(type)); if (t) type = t; }
-    items.push({ date, sport, type, desc: desc.slice(0, 120), line: e.line });
+    let notes = (e.notes || '').trim();
+    if (desc.length > 120) { notes = [desc, notes].filter(Boolean).join('\n'); desc = desc.slice(0, 117).replace(/\s+\S*$/, '') + '…'; }
+    items.push({ date, sport, type, desc, notes, line: e.line });
   }
   items.sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
   const dates = items.map((x) => x.date);
@@ -2148,7 +2163,7 @@ function viewImportPlan(app, banner) {
       <div class="seg two"><button type="button" data-ipmode="add" aria-pressed="${st.mode === 'add'}">Añadir a lo que hay</button><button type="button" data-ipmode="replace" aria-pressed="${st.mode === 'replace'}">Sustituirlas</button></div>
       <span class="hint">Las sesiones ya hechas no se tocan nunca.</span></div>` : ''}
     <div class="ipdays">${[...byDate].map(([d, list]) => `<div class="ipday"><div class="ipday-h">${esc(cap(fromISO(d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })))}</div>
-      ${list.map((it) => it.rest ? '<div class="pill-sub">Descanso</div>' : `<div class="pill s-${esc(it.sport)}">${r.newSports.has(it.sport) ? ICO_FLAG : ico(it.sport)}<span class="pill-main"><span class="pill-title">${esc(it.desc || it.type || (r.newSports.get(it.sport) || sp(it.sport).label))}</span><span class="pill-sub">${esc(r.newSports.get(it.sport) || sp(it.sport).label)}${it.type ? ' · ' + esc(it.type) : ''}</span></span></div>`).join('')}</div>`).join('')}</div>
+      ${list.map((it) => it.rest ? '<div class="pill-sub">Descanso</div>' : `<div class="pill s-${esc(it.sport)}">${r.newSports.has(it.sport) ? ICO_FLAG : ico(it.sport)}<span class="pill-main"><span class="pill-title">${esc(it.desc || it.type || (r.newSports.get(it.sport) || sp(it.sport).label))}</span><span class="pill-sub">${esc(r.newSports.get(it.sport) || sp(it.sport).label)}${it.type ? ' · ' + esc(it.type) : ''}${it.notes ? ` · detalle: ${esc(it.notes.split('\n').length)} línea${it.notes.split('\n').length === 1 ? '' : 's'}` : ''}</span></span></div>`).join('')}</div>`).join('')}</div>
     <div class="savebar">
       <button class="btn" id="ip-back">Atrás</button>
       <button class="btn primary" id="ip-save" ${sessions.length ? '' : 'disabled'}>Importar ${sessions.length} sesion${sessions.length === 1 ? '' : 'es'}</button>
@@ -2165,7 +2180,7 @@ function viewImportPlan(app, banner) {
     saveSettings();
     if (st.mode === 'replace') for (const p of existing) data.plan.delete(p.id);
     const base = Date.now();
-    sessions.forEach((it, i) => data.plan.set(`imp${base.toString(36)}${i}`, { id: `imp${base.toString(36)}${i}`, date: it.date, sport: it.sport, type: it.type || '', desc: it.desc || '', order: base + i, sessionId: null }));
+    sessions.forEach((it, i) => data.plan.set(`imp${base.toString(36)}${i}`, { id: `imp${base.toString(36)}${i}`, date: it.date, sport: it.sport, type: it.type || '', desc: it.desc || '', notes: it.notes || '', order: base + i, sessionId: null }));
     saveLocal();
     const first = r.from;
     importDraft = null;
@@ -2261,6 +2276,179 @@ async function readExcel(file) {
     if (c instanceof Date) { const d = new Date(c.getTime() + 12 * 3600e3); return iso(d); }
     return String(c ?? '').trim();
   })).filter((r) => r.some((c) => c !== ''));
+}
+
+// ===================== DETALLE DEL ENTRENO =====================
+// Pantalla que se abre al tocar una sesión planificada: estructura, datos calculados,
+// referencia de la última sesión parecida y acciones.
+let detailId = null;
+function openWorkout(id) {
+  if (!data.plan.has(id)) return;
+  detailId = id;
+  closeSheet();
+  go('entreno');
+}
+const WARM_RE = /^(calentamiento|calentar|calent\.?|warm.?up|activaci[oó]n|entrada en calor)\b/i;
+const COOL_RE = /^(vuelta a la calma|enfriamiento|cool.?down|soltar|estiramientos|estirar|relajaci[oó]n)\b/i;
+// Divide el entreno en bloques: calentamiento, parte principal y vuelta a la calma.
+// Si hay detalle, los bloques salen de él; la descripción corta va como parte principal si el detalle no la tiene.
+function workoutBlocks(p) {
+  const clean = (t) => t.replace(/^(?:[-•*·]|\d{1,2}[.)])\s+/, '').trim();
+  const src = p.notes ? p.notes.split(/\n|;/) : String(p.desc || '').split(/ · |;/);
+  const blocks = [];
+  for (const part of src.map(clean).filter(Boolean)) {
+    const label = WARM_RE.test(part) ? 'Calentamiento' : COOL_RE.test(part) ? 'Vuelta a la calma' : 'Parte principal';
+    const last = blocks[blocks.length - 1];
+    if (last && last.label === label) last.lines.push(part); else blocks.push({ label, lines: [part] });
+  }
+  if (p.notes && p.desc && !blocks.some((x) => x.label === 'Parte principal')) {
+    const i = blocks.findIndex((x) => x.label === 'Vuelta a la calma');
+    blocks.splice(i < 0 ? blocks.length : i, 0, { label: 'Parte principal', lines: [p.desc] });
+  }
+  return blocks;
+}
+// Lee «6x400 a 4:15 rec 1:30», «10x100 en 1:45», «4x10 min», «3x2 km a 4:30» del texto.
+function parseIntervals(text, sport) {
+  const re = /(\d{1,2})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(km|m|min|'|s|seg|")?(?![\d])([^\n·;+]*)/i;
+  const m = re.exec(text || '');
+  if (!m) return null;
+  const count = Number(m[1]);
+  const val = Number(m[2].replace(',', '.'));
+  const unit = (m[3] || '').toLowerCase();
+  const tail = m[4] || '';
+  const M = METRICS[metricOf(sport)] || {};
+  const paceM = M.paceM || 1000;
+  const out = { count };
+  if (unit === 'min' || unit === "'") out.repSec = val * 60;
+  else if (unit === 's' || unit === 'seg' || unit === '"') out.repSec = val;
+  else out.distM = unit === 'km' || (!unit && val <= 20 && M.unit !== 'm') ? val * 1000 : val;
+  const pm = /\b(a|@|en)\s*(\d{1,2}[:'.,]\d{2})/i.exec(tail);
+  if (pm) {
+    const t = parsePace(pm[2].replace(/[',]/g, ':'));
+    if (pm[1].toLowerCase() === 'en') { out.perRepSec = t; if (out.distM) out.pace = t / (out.distM / paceM); }
+    else { out.pace = t; if (out.distM) out.perRepSec = t * (out.distM / paceM); }
+  }
+  const rm = /(rec(?:up(?:eraci[oó]n)?)?|desc(?:anso)?|pausa|r)\.?\s*:?\s*(\d+(?:[:'.]\d{1,2})?)\s*(''|"|s|seg|min|'|m(?![a-z]))?/i.exec(tail);
+  if (rm) {
+    const v = rm[2], u = (rm[3] || '').toLowerCase();
+    if (/[:'.]/.test(v)) out.restSec = parsePace(v.replace(/['.]/g, ':'));
+    else if (u === 'min' || u === "'") out.restSec = Number(v) * 60;
+    else if (u === 'm') out.restDistM = Number(v);
+    else out.restSec = Number(v);
+  }
+  if (out.distM) out.totalM = out.distM * count;
+  const each = out.perRepSec || out.repSec;
+  if (each) out.totalSec = each * count + (out.restSec || 0) * Math.max(0, count - 1);
+  return out;
+}
+// Duración, distancia y zona escritas en el texto.
+function parseBasics(text, sport) {
+  const t = text || '';
+  const r = {};
+  let m = /(\d{1,2})\s*h\s*(\d{1,2})?\s*(?:min|')?/i.exec(t) || /(\d{1,2}):(\d{2})\s*h\b/i.exec(t);
+  if (m) r.durSec = Number(m[1]) * 3600 + Number(m[2] || 0) * 60;
+  else if ((m = /(\d{1,3})\s*(?:min|minutos|')(?![a-z])/i.exec(t)) && !/\d\s*[x×]\s*\d+\s*(?:min|')/i.test(t)) r.durSec = Number(m[1]) * 60;
+  if ((m = /(\d+(?:[.,]\d+)?)\s*km\b/i.exec(t)) && !/[x×]\s*\d+(?:[.,]\d+)?\s*km/i.test(t)) r.distM = Number(m[1].replace(',', '.')) * 1000;
+  else if (distUnit(sport) === 'm') {
+    // Metros sueltos («2000 m»), sin contar los de las series («10x100 m»).
+    for (const mm of t.matchAll(/(\d{3,5})\s*m\b/gi)) {
+      if (/[x×]\s*$/i.test(t.slice(0, mm.index))) continue;
+      r.distM = Number(mm[1]); break;
+    }
+  }
+  if ((m = /\bz\s?([1-5])\b/i.exec(t))) r.zone = `Z${m[1]}`;
+  return r;
+}
+// Última sesión registrada del mismo deporte (y tipo, si lo tiene) antes de la fecha del plan.
+function lastSimilar(p) {
+  const list = sessionsDesc().filter((s) => s.sport === p.sport && s.date <= p.date && s.id !== p.sessionId);
+  return (p.type && list.find((s) => s.type === p.type)) || list[0] || null;
+}
+function relDay(d) {
+  const n = daysUntil(d);
+  return n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : n === -1 ? 'Ayer' : '';
+}
+
+function viewWorkout(app, banner) {
+  const p = detailId ? data.plan.get(detailId) : null;
+  if (!p) { go('hoy'); return; }
+  const S = sp(p.sport), M = METRICS[S.metric] || {};
+  const st = planState(p);
+  const done = st === 'done' ? data.sessions.get(p.sessionId) : null;
+  const text = [p.desc, p.notes].filter(Boolean).join('\n');
+  const iv = parseIntervals(text, p.sport);
+  const basics = parseBasics(p.desc || '', p.sport); // duración y distancia de la sesión, no del calentamiento
+  const blocks = workoutBlocks(p);
+  const tiles = [];
+  if (iv) {
+    tiles.push(['Series', `${iv.count} × ${iv.distM ? (iv.distM >= 1000 && iv.distM % 1000 === 0 ? `${iv.distM / 1000} km` : `${nf(iv.distM)} m`) : fmtDur(iv.repSec)}`]);
+    if (iv.pace && M.paceM) tiles.push(['Ritmo objetivo', `${fmtPace(iv.pace)} ${M.paceLbl}`]);
+    if (iv.perRepSec && iv.distM) tiles.push(['Cada repetición', `≈ ${fmtDur(iv.perRepSec)}`]);
+    if (iv.restSec) tiles.push(['Recuperación', fmtDur(iv.restSec)]);
+    else if (iv.restDistM) tiles.push(['Recuperación', `${nf(iv.restDistM)} m`]);
+    if (iv.totalM) tiles.push(['Volumen de series', iv.totalM >= 1000 ? `${nf(iv.totalM / 1000, 2)} km` : `${nf(iv.totalM)} m`]);
+    if (iv.totalSec) tiles.push(['Tiempo de series', `≈ ${fmtDur(iv.totalSec)}`]);
+  }
+  if (basics.durSec) tiles.push(['Duración', fmtHM(basics.durSec)]);
+  if (basics.distM) tiles.push(['Distancia', distFmt(p.sport, basics.distM)]);
+  if (basics.zone) tiles.push(['Intensidad', basics.zone]);
+  const ref = lastSimilar(p);
+  const isStrength = S.metric === 'strength';
+  const rel = relDay(p.date);
+  const statusBadge = st === 'done' ? '<span class="badge done">Hecha</span>' : st === 'missed' ? '<span class="badge missed">No hecha</span>' : `<span class="badge pending">${rel === 'Hoy' ? 'Te toca hoy' : 'Pendiente'}</span>`;
+
+  app.innerHTML = `${banner}
+    <button class="backlink" id="wo-back">${ICO_L}<span>Volver</span></button>
+    <article class="wo s-${p.sport}">
+      <div class="wo-band">${ico(p.sport)}<span>${esc(S.label)}${p.type ? ' · ' + esc(p.type) : ''}</span></div>
+      <div class="wo-body">
+        <div class="wo-date">${esc(rel ? `${rel}, ${longDate(p.date).toLowerCase()}` : longDate(p.date))} ${statusBadge}</div>
+        <h1 class="wo-title">${esc(p.desc || p.type || S.label)}</h1>
+        ${done ? `<div class="done-line">${ICO_CHECK} Hecha · ${esc(summary(done))}</div>` : ''}
+      </div>
+    </article>
+    ${tiles.length ? `<div class="wo-tiles">${tiles.map(([k, v]) => `<div class="stat"><span>${esc(k)}</span><b class="num">${esc(v)}</b></div>`).join('')}</div>` : ''}
+    <section><div class="sec-head"><h2>El entreno</h2><button class="btn small" id="wo-note-edit">${p.notes ? 'Editar detalle' : '+ Añadir detalle'}</button></div>
+      <div id="wo-note-box">
+        ${blocks.length ? `<ol class="wo-blocks">${blocks.map((b) => `<li><span class="eyebrow">${esc(b.label)}</span>${b.lines.map((l) => `<p>${esc(l)}</p>`).join('')}</li>`).join('')}</ol>` : ''}
+        ${p.notes ? '' : '<p class="hint" style="margin:0">Añade las indicaciones completas de tu entrenador (calentamiento, series, recuperaciones, ejercicios), una por línea.</p>'}
+      </div>
+    </section>
+    ${ref ? `<section><h2>${isStrength ? 'La última vez' : 'Tu última sesión parecida'}</h2>
+      <div class="list">${sessionRow(ref)}</div>
+      ${isStrength && ref.exercises?.length ? `<div class="box wo-ex">${ref.exercises.map((e) => `<div><b>${esc(e.name)}</b> <span class="muted num">${esc(setsTxt(e.sets || []))}</span></div>`).join('')}</div>` : ''}
+    </section>` : ''}
+    <section class="wo-actions">
+      ${done ? `<button class="btn primary block" data-edit="${esc(done.id)}">Ver o corregir el registro</button>` : `
+        <button class="btn sport block s-${p.sport}" id="wo-do">${ICO_CHECK} Hecha · registrar</button>
+        ${isStrength && ref?.exercises?.length ? '<button class="btn block" id="wo-do-copy">Registrar con los ejercicios de la última vez</button>' : ''}
+        <div class="row"><button class="btn" id="wo-move">Mover a otro día</button>${p.date !== today() ? '<button class="btn" id="wo-today">Pasar a hoy</button>' : ''}</div>`}
+      <div class="row"><button class="btn" id="wo-edit">Editar</button><button class="btn" id="wo-dup">Duplicar</button></div>
+      <button class="btn danger block" id="wo-del">Eliminar del plan</button>
+    </section>`;
+
+  bindCommon(app);
+  const editNote = () => {
+    const box = $('#wo-note-box', app);
+    box.innerHTML = `<textarea id="wo-note" class="wo-note-in" placeholder="p. ej.&#10;Calentamiento: 15 min suave + 4 progresivos&#10;6x400 a 4:15, rec 1:30 trotando&#10;Vuelta a la calma: 10 min suave">${esc(p.notes || '')}</textarea>
+      <div class="row"><button class="btn primary" id="wo-note-save">Guardar detalle</button><button class="btn ghost" id="wo-note-cancel">Cancelar</button></div>`;
+    $('#wo-note', box).focus();
+    $('#wo-note-save', box).onclick = async () => { await put('plan', { ...p, notes: $('#wo-note', box).value.trim().slice(0, 2000) }); toast('Detalle guardado'); render(); };
+    $('#wo-note-cancel', box).onclick = () => render();
+  };
+  $('#wo-note-edit', app).addEventListener('click', editNote);
+  $('#wo-back', app).onclick = () => (history.length > 1 ? history.back() : go('hoy'));
+  $('#wo-do', app)?.addEventListener('click', () => startFromPlan(p));
+  $('#wo-do-copy', app)?.addEventListener('click', () => startFromPlan(p, { exercises: ref.exercises }));
+  $('#wo-move', app)?.addEventListener('click', () => startMove({ kind: 'item', id: p.id }));
+  $('#wo-today', app)?.addEventListener('click', async () => { await movePlan(p.id, today(), true); toast('Pasada a hoy'); render(); });
+  $('#wo-edit', app).onclick = () => planEditor(p);
+  $('#wo-dup', app).onclick = () => planEditor({ ...p, id: null, date: addDays(p.date, 7) });
+  const delBtn = $('#wo-del', app);
+  delBtn.onclick = async () => {
+    if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para eliminar'; return; }
+    await del('plan', p.id); detailId = null; toast('Eliminada del plan'); go('hoy');
+  };
 }
 
 // ===================== AJUSTES =====================

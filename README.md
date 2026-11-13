@@ -9,6 +9,7 @@ Tu app única de deporte: registro de entrenos, plan semanal, gimnasio, carreras
 - **Inicio:** saludo con tu nombre y tu estado de la semana, y widgets que puedes mostrar, ocultar y reordenar: lo que toca hoy, resumen de la semana, registro rápido, próxima carrera o evento, últimas sesiones, avisos y gráfica de horas.
 - **Registrar:** formulario que se adapta a cómo se mide cada deporte (ritmo /km, ritmo /100 m, ritmo /500 m, velocidad, solo tiempo o ejercicios con series y kg).
 - **Semana:** plan por días, mover e intercambiar sesiones, días de trabajo y libres, copiar el plan a varias semanas.
+- **Detalle del entreno:** al tocar una sesión planificada se abre su ficha: calentamiento, parte principal y vuelta a la calma, series con ritmo objetivo, tiempo por repetición y volumen, tu última sesión parecida y los botones para registrarla o moverla.
 - **Progreso:** volumen, gráficas de evolución y récords, para todos los deportes o uno solo.
 - **Carreras y eventos:** de cualquier deporte, con fecha, distancia opcional y objetivo (tiempo o texto); cuenta atrás en el inicio.
 - **Material:** zapatillas, bici, neopreno u otro; se elige al registrar y suma km u horas. Zapatillas: aviso a partir de 600 km y a los 700.
