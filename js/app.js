@@ -201,7 +201,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.13-5'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.15-1'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -2660,7 +2660,7 @@ function viewSettings(app, banner) {
     <section><h2>Instalar en el móvil</h2>
       <p class="muted" style="margin:0">iPhone: abre la app en Safari, pulsa Compartir y luego «Añadir a pantalla de inicio». Android: menú ⋮ de Chrome y «Instalar app».</p>
     </section>
-    <p class="banner">Versión ${APP_VERSION}</p>`;
+    <div class="about"><img src="icons/icon-192.png" alt="Logotipo" width="72" height="72"><p class="banner">Versión ${APP_VERSION}</p></div>`;
   $$('[data-sedit]', app).forEach((b) => (b.onclick = () => sportEditor(sp(b.dataset.sedit))));
   $('#set-name-save', app).onclick = () => { settings.name = $('#set-name', app).value.trim().slice(0, 30); settings.namePrompted = true; saveSettings(); toast(settings.name ? `Hola, ${settings.name}` : 'Nombre borrado'); render(); };
   $$('[data-wtog]', app).forEach((b) => (b.onclick = () => {

@@ -59,7 +59,7 @@ js/vendor/            SheetJS (Excel) y pdf.js (PDF), ambas con licencia Apache 
 plantillas/           Plantilla para importar un plan
 sw.js                 Funcionamiento sin conexión
 manifest.webmanifest  Datos para instalarla como app
-icons/                Iconos
+icons/                Logotipo (logo-umbral.png) e iconos de la app generados a partir de él
 ```
 
 Para probarla en local: `python3 -m http.server 8080` y abre http://localhost:8080.
