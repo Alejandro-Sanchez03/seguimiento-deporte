@@ -69,7 +69,16 @@ const DEFAULT_ACTIVE = ['swim', 'run', 'bike', 'strength'];
 let settings = { sports: DEFAULT_ACTIVE.map((k) => ({ ...PRESET_MAP[k] })), goalDays: 6, lastExport: null, name: '', namePrompted: false, widgets: null };
 let SPORTS = {};
 let SPORT_KEYS = []; // deportes activos, en orden
+// Tema: 'dark' (por defecto, el del logo), 'light' o 'auto' (según el sistema).
+function applyTheme() {
+  const t = settings.theme || 'dark';
+  const dark = t === 'auto' ? !window.matchMedia?.('(prefers-color-scheme: light)').matches : t !== 'light';
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#090a09' : '#f3f5f0');
+}
+try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (settings.theme === 'auto') applyTheme(); }); } catch { /* opcional */ }
 function applySports() {
+  applyTheme();
   SPORTS = {};
   for (const s of settings.sports) SPORTS[s.key] = s;
   SPORT_KEYS = settings.sports.filter((s) => !s.hidden).map((s) => s.key);
@@ -201,7 +210,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.15-1'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.15-2'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -452,6 +461,59 @@ function statusLine() {
   }
   return parts.join('. ') + '.';
 }
+// Semanas seguidas cumpliendo el objetivo de días (cuenta la actual si ya está cumplida).
+function weekStreak() {
+  const G = settings.goalDays || 6, t = today();
+  let mon = mondayOf(t), n = 0;
+  if (trainedDays(mon, t) >= G) n++;
+  mon = addDays(mon, -7);
+  for (let i = 0; i < 260; i++) {
+    if (trainedDays(mon, addDays(mon, 6)) >= G) { n++; mon = addDays(mon, -7); } else break;
+  }
+  return n;
+}
+// Frase de ánimo según cómo va la semana.
+function motivation() {
+  const t = today(), mon = mondayOf(t), G = settings.goalDays || 6;
+  const done = trainedDays(mon, t);
+  const daysLeft = 7 - ((fromISO(t).getDay() + 6) % 7); // contando hoy
+  const trainedToday = sessionsOn(t).length > 0;
+  const pending = planOn(t).filter((x) => planState(x) !== 'done');
+  if (done >= G) return done > G ? `Llevas ${done} días: has superado tu objetivo. Escucha al cuerpo y descansa.` : '¡Objetivo de la semana cumplido! Lo que venga ahora es extra.';
+  if (trainedToday && !pending.length) return `Hoy ya está hecho. Te ${G - done === 1 ? 'falta 1 día' : `faltan ${G - done} días`} para el objetivo.`;
+  if (pending.length) return `Hoy toca ${pending[0].desc || pending[0].type || sp(pending[0].sport).label}. ¡A por ello!`;
+  if (G - done > daysLeft) return `Te faltan ${G - done} días y quedan ${daysLeft}. Esta semana no llega, pero cada sesión suma.`;
+  if (done === 0) return 'Semana nueva: el primer entreno es el que más cuesta.';
+  return `Vas bien: ${done} de ${G} días. Hoy puede ser el siguiente.`;
+}
+function heroHTML(t) {
+  const mon = mondayOf(t), G = settings.goalDays || 6;
+  const done = trainedDays(mon, t);
+  const sec = sessionsIn(mon, addDays(t, 1)).reduce((a, x) => a + (x.durationSec || 0), 0);
+  const streak = weekStreak();
+  const R = 50, C = 2 * Math.PI * R, frac = Math.min(1, done / G);
+  const r = upcomingRaces()[0];
+  const n = r ? daysUntil(r.date) : null;
+  return `<header class="hero">
+    <div class="hero-top"><img class="brand" src="icons/icon-192.png" alt="" width="44" height="44">
+      <div><div class="date">${esc(longDate(t))}</div><h1>${esc(greetingText())}</h1></div></div>
+    <div class="hero-card">
+      <div class="ring" role="img" aria-label="${done} de ${G} días de entreno esta semana">
+        <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}" fill="none" stroke-width="12"/>
+          <circle class="bar ${frac >= 1 ? 'full' : ''}" cx="60" cy="60" r="${R}" fill="none" stroke-width="12" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - frac)).toFixed(1)}" style="--len:${C.toFixed(1)}"/></svg>
+        <div class="ring-center"><b class="num">${done}<small>/${G}</small></b><span>días</span></div>
+      </div>
+      <div class="hero-side">
+        <p class="status">${esc(motivation())}</p>
+        <div class="hero-stats">
+          <span class="${streak ? 'hot' : ''}">${icoName('bolt')}<b class="num">${streak}</b> ${streak === 1 ? 'semana' : 'semanas'} de racha</span>
+          <span><b class="num">${Math.floor(Math.round(sec / 60) / 60)}:${pad2(Math.round(sec / 60) % 60)}</b> h esta semana</span>
+          ${r && n <= 60 ? `<span>${ICO_FLAG}<b class="num">${n === 0 ? '¡Hoy!' : n}</b>${n === 0 ? '' : ` día${n === 1 ? '' : 's'}`} para ${esc(r.name.length > 18 ? r.name.slice(0, 17) + '…' : r.name)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </header>`;
+}
 function namePrompt() {
   if (settings.name || settings.namePrompted) return '';
   return `<form class="box nameask" id="name-ask">
@@ -514,11 +576,6 @@ function wWeek(t) {
   const goal = goalNote(w, true);
   return `<section class="widget" data-w="week">
     <div class="sec-head"><h2>Esta semana</h2><a class="muted" href="#semana">Ver semana</a></div>
-    <div class="stats3">
-      <div class="stat"><b class="num">${done}/${G}</b><span>días entrenados</span></div>
-      <div class="stat"><b class="num">${Math.floor(Math.round(tot.sec / 60) / 60)}:${pad2(Math.round(tot.sec / 60) % 60)}</b><span>horas</span></div>
-      <div class="stat"><b class="num">${tot.n}</b><span>sesiones</span></div>
-    </div>
     <div class="strip">${strip}</div>
     ${keys.length && tot.sec ? `<div class="split" role="img" aria-label="Reparto de horas por deporte">${keys.filter((k) => tot.by[k].sec).map((k) => `<i class="s-${k}" style="flex:${tot.by[k].sec}"></i>`).join('')}</div>
     <div class="split-legend">${keys.map((k) => `<button type="button" class="s-${k}" data-prog="${k}"><i></i>${esc(sp(k).label)} <b class="num">${esc(tot.by[k].sec ? fmtHM(tot.by[k].sec) : tot.by[k].n + ' ses.')}</b>${isDistMetric(metricOf(k)) && tot.by[k].dist ? ` <span class="muted num">${esc(volTxt(k, tot.by[k]))}</span>` : ''}</button>`).join('')}</div>` : '<p class="hint" style="margin:0">Aún no has registrado sesiones esta semana.</p>'}
@@ -583,11 +640,7 @@ function viewToday(app, banner) {
   const t = today();
   const widgets = widgetList().filter((w) => w.on).map((w) => WIDGET_RENDER[w.id](t)).join('');
   app.innerHTML = `${banner}
-    <header class="greet">
-      <h1>${esc(greetingText())}</h1>
-      <div class="date">${esc(longDate(t))}</div>
-      <p class="status">${esc(statusLine())}</p>
-    </header>
+    ${heroHTML(t)}
     ${namePrompt()}
     ${widgets || '<div class="empty"><p class="muted" style="margin:0">Has ocultado todos los bloques. Puedes elegir cuáles ver en Ajustes → Pantalla de inicio.</p><a class="btn" href="#ajustes">Ir a Ajustes</a></div>'}`;
   bindCommon(app);
@@ -1162,8 +1215,8 @@ function bindForm(app) {
     draft = null;
     const warnGear = (s.gearIds || []).map((id) => data.gear.get(id)).find((g) => g && gearState(g) !== 'ok');
     const gearMsg = warnGear ? ` · «${warnGear.name}» lleva ${gearFmt(warnGear, gearValue(warnGear))}` : '';
-    toast((d.id ? 'Cambios guardados' : plan ? '¡Hecha! Sesión registrada' : 'Sesión registrada') + gearMsg);
-    go('hoy');
+    if (d.id) { toast('Cambios guardados' + gearMsg); go('hoy'); return; }
+    celebrate(s, gearMsg);
   };
 }
 
@@ -2577,6 +2630,38 @@ function viewWorkout(app, banner) {
   };
 }
 
+// ===================== CELEBRACIÓN =====================
+// Al registrar una sesión nueva: «¡Hecho!», cómo va la semana, racha y récords batidos.
+function celebrate(s, extra = '') {
+  const t = today(), mon = mondayOf(s.date <= t ? t : s.date), G = settings.goalDays || 6;
+  const thisWeek = mondayOf(s.date) === mondayOf(t);
+  const daysSet = new Set(sessionsIn(mon, addDays(mon, 7)).map((x) => x.date));
+  const done = daysSet.size;
+  const enough = [...data.sessions.values()].filter((x) => x.sport === s.sport && x.id !== s.id).length >= 2;
+  const prs = enough ? recordsFor(s.sport).filter((r) => r.s && r.s.id === s.id) : [];
+  const streak = weekStreak();
+  let msg;
+  if (!thisWeek) msg = 'Sesión guardada en su semana.';
+  else if (done === G) msg = '¡Objetivo de la semana cumplido!';
+  else if (done > G) msg = `${done} días esta semana. ¡Imparable!`;
+  else msg = `Llevas ${done} de ${G} días esta semana. ${G - done === 1 ? '¡Solo te falta uno!' : `Te faltan ${G - done}.`}`;
+  const root = $('#sheet-root');
+  root.innerHTML = `<div class="cele" role="dialog" aria-modal="true" aria-label="Sesión registrada"><div class="cele-in">
+    <div class="cele-check">${ICO_CHECK}</div>
+    <h2>¡Hecho!</h2>
+    <p class="sum num">${esc(sessionTitle(s))}${summary(s) ? ' · ' + esc(summary(s)) : ''}</p>
+    ${thisWeek ? `<div class="cele-week" aria-hidden="true">${Array.from({ length: Math.max(G, done) }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>` : ''}
+    <p class="cele-msg">${esc(msg)}</p>
+    ${streak > 1 ? `<p class="muted" style="margin:0">${streak} semanas seguidas cumpliendo tu objetivo.</p>` : ''}
+    ${prs.length ? `<div class="cele-prs">${prs.slice(0, 3).map((r) => `<div><span>Nuevo récord · ${esc(r.label)}</span><b class="num">${esc(r.value)}</b></div>`).join('')}</div>` : ''}
+    ${extra ? `<p class="hint" style="margin:0">${esc(extra.replace(/^ · /, ''))}</p>` : ''}
+    <button class="btn primary" id="cele-ok">Seguir</button>
+  </div></div>`;
+  const close = () => { root.innerHTML = ''; go('hoy'); };
+  $('#cele-ok', root).onclick = close;
+  $('#cele-ok', root).focus();
+}
+
 // ===================== AJUSTES =====================
 function cleanSportDef(d) {
   const metric = METRICS[d.metric] ? d.metric : 'time';
@@ -2611,6 +2696,10 @@ function viewSettings(app, banner) {
   const ds = daysSince(settings.lastExport);
   const used = new Set([...data.sessions.values()].map((s) => s.sport));
   app.innerHTML = `${banner}<h1>Ajustes</h1>
+    <section><h2>Apariencia</h2>
+      <div class="seg theme">${[['dark', 'Oscuro'], ['light', 'Claro'], ['auto', 'Automático']].map(([k, l]) => `<button type="button" data-theme-pick="${k}" aria-pressed="${(settings.theme || 'dark') === k}">${l}</button>`).join('')}</div>
+      <p class="hint" style="margin:0">Automático sigue el modo claro u oscuro de tu móvil.</p>
+    </section>
     <section><h2>Pantalla de inicio</h2>
       <div class="field"><label for="set-name">Tu nombre</label>
         <div class="row"><input id="set-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(settings.name || '')}" placeholder="Para el saludo"><button class="btn" id="set-name-save">Guardar</button></div></div>
@@ -2663,6 +2752,7 @@ function viewSettings(app, banner) {
     <div class="about"><img src="icons/icon-192.png" alt="Logotipo" width="72" height="72"><p class="banner">Versión ${APP_VERSION}</p></div>`;
   $$('[data-sedit]', app).forEach((b) => (b.onclick = () => sportEditor(sp(b.dataset.sedit))));
   $('#set-name-save', app).onclick = () => { settings.name = $('#set-name', app).value.trim().slice(0, 30); settings.namePrompted = true; saveSettings(); toast(settings.name ? `Hola, ${settings.name}` : 'Nombre borrado'); render(); };
+  $$('[data-theme-pick]', app).forEach((b) => (b.onclick = () => { settings.theme = b.dataset.themePick; saveSettings(); render(); }));
   $$('[data-wtog]', app).forEach((b) => (b.onclick = () => {
     const list = widgetList(); const w = list.find((x) => x.id === b.dataset.wtog); w.on = !w.on;
     settings.widgets = list; saveSettings(); render();
