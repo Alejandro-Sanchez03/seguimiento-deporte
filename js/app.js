@@ -210,7 +210,7 @@ let store = 'loading';
 let extraKeys = {}; // claves desconocidas del objeto guardado: se conservan tal cual al guardar
 let storageBroken = false; // si no se pudo leer lo guardado, no se escribe encima
 let unreadableNote = false; // se apartaron datos ilegibles en otra clave
-const APP_VERSION = '2026.11.15-2'; // se muestra en Ajustes para saber qué versión tienes abierta
+const APP_VERSION = '2026.11.18-1'; // se muestra en Ajustes para saber qué versión tienes abierta
 const LS_KEY = 'cuaderno-tri:v1';
 const LS_SETTINGS = 'cuaderno-tri:ajustes';
 
@@ -393,6 +393,23 @@ function toast(msg) {
   clearTimeout(toast.t);
   toast.t = setTimeout(() => (root.innerHTML = ''), 2600);
 }
+// Aviso con un botón de acción (p. ej. Deshacer), visible unos segundos.
+function snack(msg, label, fn, ms = 8000) {
+  const root = $('#toast-root');
+  root.innerHTML = `<div class="toast snack" role="status"><span>${esc(msg)}</span><button type="button" id="snack-act">${esc(label)}</button></div>`;
+  clearTimeout(toast.t);
+  $('#snack-act', root).onclick = () => { root.innerHTML = ''; clearTimeout(toast.t); fn(); };
+  toast.t = setTimeout(() => (root.innerHTML = ''), ms);
+}
+// Quita del plan las sesiones dadas y ofrece deshacerlo.
+function removePlanItems(items, msg) {
+  const backup = items.map((x) => clone(x));
+  for (const x of items) data.plan.delete(x.id);
+  saveLocal();
+  render();
+  snack(msg, 'Deshacer', () => { for (const x of backup) data.plan.set(x.id, x); saveLocal(); toast('Recuperado'); render(); });
+}
+const pendingPlan = () => [...data.plan.values()].filter((x) => planState(x) !== 'done');
 function go(r) { if (location.hash !== '#' + r) location.hash = r; else render(); }
 
 function openSheet(html, mount) {
@@ -749,6 +766,7 @@ function viewWeek(app, banner) {
         <button class="btn primary" id="import-plan">Importar plan (PDF, Excel, CSV o texto)</button>
         <button class="btn" id="copy-week">Copiar semana a las siguientes</button>
         <button class="btn danger" id="clear-week">Vaciar semana</button>
+        <button class="btn danger" id="clear-plan">Borrar toda la planificación</button>
       </div>
     </section>`;
 
@@ -761,6 +779,7 @@ function viewWeek(app, banner) {
   $('#copy-week', app).onclick = copyWeekSheet;
   $('#import-plan', app).onclick = () => { importDraft = null; go('importar-plan'); };
   $('#clear-week', app).onclick = clearWeekSheet;
+  $('#clear-plan', app).onclick = clearAllPlanSheet;
   if (moving) {
     $$('.day', app).forEach((el) => {
       el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); dropOn(el.dataset.day); }, true);
@@ -912,7 +931,27 @@ function clearWeekSheet() {
   openSheet(`<h2>Vaciar semana</h2><p class="muted" style="margin:0">Se borrarán ${items.length} sesiones planificadas sin hacer. Las ya registradas se quedan.</p>
     <div class="actions"><button class="btn danger" id="cw-del">Borrar ${items.length} sesiones</button><button class="btn ghost" id="cw-no">Cancelar</button></div>`, (el) => {
     $('#cw-no', el).onclick = closeSheet;
-    $('#cw-del', el).onclick = async () => { closeSheet(); await pool(items.map((p) => () => del('plan', p.id))); toast('Semana vaciada'); render(); };
+    $('#cw-del', el).onclick = () => { closeSheet(); removePlanItems(items, `Semana vaciada (${items.length})`); };
+  });
+}
+function clearAllPlanSheet() {
+  const items = pendingPlan();
+  if (!items.length) { toast('No tienes sesiones planificadas pendientes'); return; }
+  const dates = items.map((x) => x.date).sort();
+  const done = data.plan.size - items.length;
+  openSheet(`<h2>Borrar toda la planificación</h2>
+    <p class="muted" style="margin:0">Se borrarán <b>${items.length} sesiones planificadas</b> que no has hecho, del ${esc(shortDate(dates[0]))} al ${esc(shortDate(dates[dates.length - 1]))}.</p>
+    <p class="muted" style="margin:0">Tus entrenos registrados no se tocan${done ? `, ni ${done === 1 ? 'la sesión del plan que ya hiciste' : `las ${done} sesiones del plan que ya hiciste`}` : ''}. Después podrás importar el plan nuevo.</p>
+    <div class="actions"><button class="btn danger" id="ca-del">Borrar ${items.length} sesiones</button>
+      <button class="btn" id="ca-import">Borrar e importar el plan nuevo</button>
+      <button class="btn ghost" id="ca-no">Cancelar</button></div>`, (el) => {
+    $('#ca-no', el).onclick = closeSheet;
+    const delBtn = $('#ca-del', el);
+    delBtn.onclick = () => {
+      if (!delBtn.dataset.sure) { delBtn.dataset.sure = '1'; delBtn.textContent = 'Toca otra vez para borrar'; return; }
+      closeSheet(); removePlanItems(items, `Planificación borrada (${items.length} sesiones)`);
+    };
+    $('#ca-import', el).onclick = () => { closeSheet(); importDraft = null; importMode = 'all'; go('importar-plan'); };
   });
 }
 
@@ -2148,6 +2187,7 @@ const PLAN_TEMPLATE = [
 ].join('\n');
 
 let importDraft = null; // { source, name, rows|text, startMon, mode }
+let importMode = null; // modo elegido para la próxima importación (si se viene de «Borrar e importar»)
 function viewImportPlan(app, banner) {
   const st = importDraft;
   if (!st) {
@@ -2178,7 +2218,7 @@ function viewImportPlan(app, banner) {
     $('#ip-go', app).onclick = () => {
       const text = $('#ip-text', app).value;
       if (!text.trim()) { toast('Pega el plan o elige un archivo'); return; }
-      importDraft = { source: 'texto pegado', text, startMon: defaultStartMon(), mode: 'add' };
+      importDraft = { source: 'texto pegado', text, startMon: defaultStartMon(), mode: importMode || settings.importMode || 'add' };
       render();
     };
     $('#ip-file', app).addEventListener('change', async (e) => {
@@ -2188,12 +2228,12 @@ function viewImportPlan(app, banner) {
         if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
           const text = await readPdf(f);
           if (!text.replace(/\s/g, '')) { toast('Este PDF no tiene texto (parece escaneado). Pide el plan en PDF con texto, Excel, o cópialo a mano.'); return; }
-          importDraft = { source: f.name, text, startMon: defaultStartMon(), mode: 'add' };
+          importDraft = { source: f.name, text, startMon: defaultStartMon(), mode: importMode || settings.importMode || 'add' };
         } else if (/\.xlsx?$/i.test(f.name)) {
           const rows = await readExcel(f);
-          importDraft = { source: f.name, rows, startMon: defaultStartMon(), mode: 'add' };
+          importDraft = { source: f.name, rows, startMon: defaultStartMon(), mode: importMode || settings.importMode || 'add' };
         } else {
-          importDraft = { source: f.name, text: await f.text(), startMon: defaultStartMon(), mode: 'add' };
+          importDraft = { source: f.name, text: await f.text(), startMon: defaultStartMon(), mode: importMode || settings.importMode || 'add' };
         }
         render();
       } catch (err) {
@@ -2208,25 +2248,31 @@ function viewImportPlan(app, banner) {
   for (const it of r.items) { if (!byDate.has(it.date)) byDate.set(it.date, []); byDate.get(it.date).push(it); }
   const sessions = r.items.filter((x) => !x.rest);
   const existing = r.from ? [...data.plan.values()].filter((p) => p.date >= r.from && p.date <= r.to && planState(p) !== 'done') : [];
+  const allPending = pendingPlan();
+  if (st.mode === 'replace' && !existing.length) st.mode = 'add';
   const weeks = r.from ? Math.floor((fromISO(r.to) - fromISO(mondayOf(r.from))) / (7 * 864e5)) + 1 : 0;
   app.innerHTML = `${banner}
     <div class="top"><div><div class="eyebrow">Importar plan · ${esc(st.source)}</div><h1>Revisa el plan</h1></div></div>
-    ${sessions.length ? `<div class="note okay">${sessions.length} sesion${sessions.length === 1 ? '' : 'es'} en ${weeks} semana${weeks === 1 ? '' : 's'}, del ${esc(shortDate(r.from))} al ${esc(shortDate(r.to))}.</div>` : '<div class="note bad">No he encontrado sesiones. Revisa el formato más abajo o vuelve atrás.</div>'}
+    ${sessions.length ? `<div class="note okay">${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'} en ${weeks} semana${weeks === 1 ? '' : 's'}, del ${esc(shortDate(r.from))} al ${esc(shortDate(r.to))}.</div>` : '<div class="note bad">No he encontrado sesiones. Revisa el formato más abajo o vuelve atrás.</div>'}
     ${r.relative ? `<div class="field"><label for="ip-start">La semana 1 empieza el lunes</label><input id="ip-start" type="date" value="${esc(st.startMon)}"><span class="hint">Tu plan usa semanas y días; elige en qué semana empieza.</span></div>` : ''}
     ${r.newSports.size ? `<div class="note warn">Se añadirá${r.newSports.size === 1 ? '' : 'n'} a tus deportes: ${esc([...r.newSports.values()].join(', '))}. Si es un error de escritura, corrígelo en el archivo.</div>` : ''}
     ${r.errors.length ? `<div class="note bad"><b>${r.errors.length} fila${r.errors.length === 1 ? '' : 's'} no se importará${r.errors.length === 1 ? '' : 'n'}:</b><ul class="errs">${r.errors.slice(0, 12).map((e) => `<li>Fila ${e.line}: ${esc(e.msg)}</li>`).join('')}${r.errors.length > 12 ? `<li>y ${r.errors.length - 12} más</li>` : ''}</ul></div>` : ''}
     ${r.skipped.length ? `<p class="hint" style="margin:0">He ignorado ${r.skipped.length} línea${r.skipped.length === 1 ? '' : 's'} antes del primer día (títulos o notas): «${esc(r.skipped.slice(0, 2).join('», «'))}»${r.skipped.length > 2 ? '…' : ''}</p>` : ''}
-    ${existing.length ? `<div class="field"><span class="lbl">Ya tienes ${existing.length} sesión${existing.length === 1 ? '' : 'es'} planificada${existing.length === 1 ? '' : 's'} en esas fechas</span>
-      <div class="seg two"><button type="button" data-ipmode="add" aria-pressed="${st.mode === 'add'}">Añadir a lo que hay</button><button type="button" data-ipmode="replace" aria-pressed="${st.mode === 'replace'}">Sustituirlas</button></div>
-      <span class="hint">Las sesiones ya hechas no se tocan nunca.</span></div>` : ''}
+    ${allPending.length ? `<div class="field"><span class="lbl">Ya tienes ${allPending.length} ${allPending.length === 1 ? 'sesión' : 'sesiones'} planificada${allPending.length === 1 ? '' : 's'} sin hacer${existing.length ? ` (${existing.length} en estas fechas)` : ''}. ¿Qué hago con ellas?</span>
+      <div class="ipmodes">
+        <button type="button" data-ipmode="all" aria-pressed="${st.mode === 'all'}"><b>Borrar todo y poner este plan</b><small>Para cuando subes una versión nueva del plan</small></button>
+        ${existing.length ? `<button type="button" data-ipmode="replace" aria-pressed="${st.mode === 'replace'}"><b>Sustituir solo estas fechas</b><small>Se quedan las de otras fechas</small></button>` : ''}
+        <button type="button" data-ipmode="add" aria-pressed="${st.mode === 'add'}"><b>Añadir a lo que hay</b><small>No se borra nada</small></button>
+      </div>
+      <span class="hint">Las sesiones que ya hiciste no se tocan nunca.</span></div>` : ''}
     <div class="ipdays">${[...byDate].map(([d, list]) => `<div class="ipday"><div class="ipday-h">${esc(cap(fromISO(d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })))}</div>
       ${list.map((it) => it.rest ? '<div class="pill-sub">Descanso</div>' : `<div class="pill s-${esc(it.sport)}">${r.newSports.has(it.sport) ? ICO_FLAG : ico(it.sport)}<span class="pill-main"><span class="pill-title">${esc(it.desc || it.type || (r.newSports.get(it.sport) || sp(it.sport).label))}</span><span class="pill-sub">${esc(r.newSports.get(it.sport) || sp(it.sport).label)}${it.type ? ' · ' + esc(it.type) : ''}${it.notes ? ` · detalle: ${esc(it.notes.split('\n').length)} línea${it.notes.split('\n').length === 1 ? '' : 's'}` : ''}</span></span></div>`).join('')}</div>`).join('')}</div>
     <div class="savebar">
       <button class="btn" id="ip-back">Atrás</button>
-      <button class="btn primary" id="ip-save" ${sessions.length ? '' : 'disabled'}>Importar ${sessions.length} sesion${sessions.length === 1 ? '' : 'es'}</button>
+      <button class="btn primary" id="ip-save" ${sessions.length ? '' : 'disabled'}>Importar ${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'}</button>
     </div>`;
   $('#ip-start', app)?.addEventListener('change', (e) => { if (isISO(e.target.value)) { st.startMon = mondayOf(e.target.value); render(); } });
-  $$('[data-ipmode]', app).forEach((b) => (b.onclick = () => { st.mode = b.dataset.ipmode; render(); }));
+  $$('[data-ipmode]', app).forEach((b) => (b.onclick = () => { st.mode = b.dataset.ipmode; settings.importMode = st.mode; saveSettings(); render(); }));
   $('#ip-back', app).onclick = () => { importDraft = null; render(); };
   $('#ip-save', app).onclick = async () => {
     for (const [key, label] of r.newSports) if (!settings.sports.some((x) => x.key === key)) settings.sports.push({ key, label, icon: 'bolt', color: COLORS[settings.sports.length % COLORS.length], metric: 'time', types: [] });
@@ -2235,14 +2281,23 @@ function viewImportPlan(app, banner) {
       if (def) def.hidden = false; else ensureSport(it.sport);
     }
     saveSettings();
-    if (st.mode === 'replace') for (const p of existing) data.plan.delete(p.id);
+    const removed = st.mode === 'all' ? allPending : st.mode === 'replace' ? existing : [];
+    settings.importMode = st.mode; // la próxima importación propone lo mismo
+    const removedBackup = removed.map((x) => clone(x));
+    for (const p of removed) data.plan.delete(p.id);
     const base = Date.now();
     sessions.forEach((it, i) => data.plan.set(`imp${base.toString(36)}${i}`, { id: `imp${base.toString(36)}${i}`, date: it.date, sport: it.sport, type: it.type || '', desc: it.desc || '', notes: it.notes || '', order: base + i, sessionId: null }));
     saveLocal();
     const first = r.from;
     importDraft = null;
     weekMon = mondayOf(first);
-    toast(`Plan importado: ${sessions.length} sesiones`);
+    const addedIds = sessions.map((_, k) => `imp${base.toString(36)}${k}`);
+    importMode = null;
+    snack(`Plan importado: ${sessions.length} sesiones${removed.length ? ` (${removed.length} anteriores borradas)` : ''}`, 'Deshacer', () => {
+      for (const id of addedIds) data.plan.delete(id);
+      for (const x of removedBackup) data.plan.set(x.id, x);
+      saveLocal(); toast('Importación deshecha'); render();
+    });
     go('semana');
   };
 }

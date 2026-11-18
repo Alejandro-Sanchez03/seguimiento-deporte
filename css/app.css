@@ -522,3 +522,12 @@ a.muted { color: var(--accent-text); text-decoration: none; font-weight: 600; }
 }
 .seg.theme { grid-template-columns: repeat(3, 1fr); }
 .hero-stats span { white-space: normal; max-width: 100%; min-width: 0; }
+
+/* Aviso con Deshacer y opciones del importador */
+.toast.snack { display: flex; align-items: center; gap: 14px; text-align: left; border-radius: 16px; padding: 10px 10px 10px 16px; }
+.toast.snack button { border: 0; background: transparent; color: inherit; font-weight: 800; text-decoration: underline; min-height: 40px; padding: 0 8px; white-space: nowrap; }
+.ipmodes { display: flex; flex-direction: column; gap: 6px; }
+.ipmodes button { text-align: left; min-height: 56px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; }
+.ipmodes button small { color: var(--muted); font-size: .85rem; }
+.ipmodes button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.ipmodes button[aria-pressed="true"] small { color: inherit; opacity: .8; }
